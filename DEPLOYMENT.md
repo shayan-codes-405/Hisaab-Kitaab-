@@ -93,3 +93,4 @@ This populates:
 - Default login credentials:
   - **Username**: `admin`
   - **Password**: `admin123`
+

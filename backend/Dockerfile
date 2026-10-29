@@ -26,3 +26,4 @@ EXPOSE 8000
 
 # Start FastAPI via Uvicorn (uses $PORT provided dynamically by Render or defaults to 8000)
 CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+
