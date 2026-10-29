@@ -38,6 +38,10 @@ Render supports Docker builds natively from your GitHub repository.
    | `TOKEN_EXPIRE_HOURS` | `24` |
    | `FRONTEND_ORIGIN` | `https://hisab-kitaab.vercel.app` |
    | `CORS_ORIGINS` | `https://hisab-kitaab.vercel.app,http://localhost:5173` |
+   | `TEXTBEE_API_URL` | `https://api.textbee.dev/api/v1` |
+   | `TEXTBEE_API_KEY` | `txb_Vm7G7gBGMX8h0Qgg0kAiNrog050S34kc` |
+   | `TEXTBEE_DEVICE_ID` | `6ae2fd84c1ee0a8dec8f5f7d` |
+   | `TEXTBEE_DEMO_MODE` | `false` |
 5. Click **Deploy Web Service**.
 6. Once deployed, copy your backend URL (e.g. `https://hisabkitab-backend.onrender.com`). Verify by visiting `https://hisabkitab-backend.onrender.com/api/health`.
 

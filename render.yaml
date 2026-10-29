@@ -18,4 +18,12 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      - key: TEXTBEE_API_URL
+        value: https://api.textbee.dev/api/v1
+      - key: TEXTBEE_API_KEY
+        sync: false
+      - key: TEXTBEE_DEVICE_ID
+        sync: false
+      - key: TEXTBEE_DEMO_MODE
+        value: "false"
 
