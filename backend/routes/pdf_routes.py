@@ -113,12 +113,14 @@ def build_pdf_buffer(inv: dict, template_style: str = "classic") -> io.BytesIO:
     customer = inv.get("customer", {})
     inv_num = inv.get("invoice_number", "INV")
     inv_date = inv.get("invoice_date", "")
+    inv_time = inv.get("invoice_time", "")
     due_date = inv.get("due_date", "")
     status_str = inv.get("payment_status", "Unpaid").upper()
+    date_display = f"{inv_date} {inv_time}" if inv_time else inv_date
 
     # --- TOP HEADER BLOCK ---
     header_left = [
-        Paragraph(seller.get("business_name", "HisabKitab Enterprises"), title_style),
+        Paragraph(seller.get("business_name", "Enterprises"), title_style),
         Spacer(1, 2 * mm),
         Paragraph(f"{seller.get('address', '')}", subtitle_style),
         Paragraph(f"State: {seller.get('state', '')} | Phone: {seller.get('phone', '')}", subtitle_style),
@@ -131,7 +133,7 @@ def build_pdf_buffer(inv: dict, template_style: str = "classic") -> io.BytesIO:
         Paragraph("TAX INVOICE", ParagraphStyle('TaxTitle', fontName='Helvetica-Bold', fontSize=14, alignment=2, textColor=COLOR_FOREST)),
         Spacer(1, 1 * mm),
         Paragraph(f"<b>Invoice No:</b> {inv_num}", ParagraphStyle('RightMeta', fontName='Helvetica', fontSize=9, alignment=2, textColor=COLOR_CHARCOAL)),
-        Paragraph(f"<b>Date:</b> {inv_date}", ParagraphStyle('RightMetaDate', fontName='Helvetica', fontSize=8.5, alignment=2, textColor=COLOR_CHARCOAL)),
+        Paragraph(f"<b>Date & Time:</b> {date_display}", ParagraphStyle('RightMetaDate', fontName='Helvetica', fontSize=8.5, alignment=2, textColor=COLOR_CHARCOAL)),
         Paragraph(f"<b>Due Date:</b> {due_date or 'Immediate'}", ParagraphStyle('RightMetaDue', fontName='Helvetica', fontSize=8.5, alignment=2, textColor=COLOR_CHARCOAL)),
         Spacer(1, 1.5 * mm),
         Paragraph(f"<b>STATUS: {status_str}</b>", ParagraphStyle('RightMetaStatus', fontName='Helvetica-Bold', fontSize=9, alignment=2, textColor=status_color))
@@ -338,8 +340,8 @@ def build_pdf_buffer(inv: dict, template_style: str = "classic") -> io.BytesIO:
     # Signature line
     sig_table = Table([
         [
-            Paragraph("This is a computer generated invoice.", subtitle_style),
-            Paragraph(f"For <b>{seller.get('business_name', 'HisabKitab')}</b><br/><br/><br/>Authorized Signatory", ParagraphStyle('Sig', fontName='Helvetica', fontSize=8, alignment=2, textColor=COLOR_CHARCOAL))
+            Paragraph("This is a computer generated tax invoice.", subtitle_style),
+            Paragraph(f"For <b>{seller.get('business_name', 'Authorized Business')}</b><br/><br/><br/>Authorized Signatory", ParagraphStyle('Sig', fontName='Helvetica', fontSize=8, alignment=2, textColor=COLOR_CHARCOAL))
         ]
     ], colWidths=[100 * mm, 82 * mm], style=[('VALIGN', (0, 0), (-1, -1), 'BOTTOM')])
 

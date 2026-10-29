@@ -46,6 +46,7 @@ class CreateInvoiceRequest(BaseModel):
     customer: CustomerSchema
     items: List[InvoiceItemSchema] = Field(..., min_items=1)
     invoice_date: Optional[str] = None
+    invoice_time: Optional[str] = None
     due_date: Optional[str] = None
     invoice_level_discount_type: str = "percentage" # "percentage" or "fixed"
     invoice_level_discount_value: float = Field(0.0, ge=0)
@@ -396,6 +397,7 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
     invoice_doc = {
         "invoice_number": inv_number,
         "invoice_date": data.invoice_date or datetime.now().strftime("%Y-%m-%d"),
+        "invoice_time": data.invoice_time or datetime.now().strftime("%I:%M %p"),
         "due_date": data.due_date or "",
         "template": data.template if data.template in ("classic", "premium") else "classic",
         "seller_snapshot": {
@@ -648,6 +650,8 @@ def update_invoice(
 
     if data.invoice_date:
         update_doc["invoice_date"] = data.invoice_date
+    if data.invoice_time:
+        update_doc["invoice_time"] = data.invoice_time
     if data.due_date is not None:
         update_doc["due_date"] = data.due_date
 

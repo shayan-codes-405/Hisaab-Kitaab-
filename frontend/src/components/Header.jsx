@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export const Header = ({ activeTab, onNewInvoice, onNewProduct }) => {
   const { business } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const dateInputRef = useRef(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const getTabTitle = () => {
     switch (activeTab) {
@@ -24,6 +33,27 @@ export const Header = ({ activeTab, onNewInvoice, onNewProduct }) => {
     month: 'short',
     year: 'numeric'
   }).format(new Date(selectedDate));
+
+  const formattedTime = currentTime.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
+  const handleOpenCalendar = () => {
+    if (dateInputRef.current) {
+      try {
+        if (typeof dateInputRef.current.showPicker === 'function') {
+          dateInputRef.current.showPicker();
+        } else {
+          dateInputRef.current.focus();
+        }
+      } catch (err) {
+        dateInputRef.current.focus();
+      }
+    }
+  };
 
   return (
     <header
@@ -59,8 +89,9 @@ export const Header = ({ activeTab, onNewInvoice, onNewProduct }) => {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-        {/* Working Interactive Date / Calendar Control */}
+        {/* Working Interactive Date & Live Time Clock Control */}
         <div
+          onClick={handleOpenCalendar}
           style={{
             position: 'relative',
             display: 'flex',
@@ -68,27 +99,33 @@ export const Header = ({ activeTab, onNewInvoice, onNewProduct }) => {
             backgroundColor: 'var(--color-ivory)',
             border: '1px solid var(--color-stone)',
             borderRadius: '6px',
-            padding: '4px 10px',
-            gap: '8px',
-            cursor: 'pointer'
+            padding: '5px 12px',
+            gap: '10px',
+            cursor: 'pointer',
+            userSelect: 'none'
           }}
-          title="Click to view or pick date"
+          title="Click to open calendar & pick date"
         >
-          <span style={{ fontSize: '14px' }}>📅</span>
-          <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--color-charcoal)', fontFamily: 'var(--font-heading)' }}>
-            {formattedDate}
-          </span>
+          <span style={{ fontSize: '16px' }}>📅</span>
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-charcoal)', fontFamily: 'var(--font-heading)', lineHeight: 1.2 }}>
+              {formattedDate}
+            </div>
+            <div style={{ fontSize: '10.5px', color: 'var(--color-forest)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+              🕒 {formattedTime}
+            </div>
+          </div>
           <input
+            ref={dateInputRef}
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
             style={{
               position: 'absolute',
               opacity: 0,
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              cursor: 'pointer'
+              width: 0,
+              height: 0,
+              pointerEvents: 'none'
             }}
           />
         </div>

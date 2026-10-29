@@ -62,7 +62,12 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     state: business?.state || 'Maharashtra'
   });
 
+  const getCurrentTimeStr = () => {
+    return new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceTime, setInvoiceTime] = useState(getCurrentTimeStr());
   const [dueDate, setDueDate] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('Paid');
   const [amountPaid, setAmountPaid] = useState('');
@@ -357,6 +362,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       state: business?.state || 'Maharashtra'
     });
     setInvoiceDate(new Date().toISOString().split('T')[0]);
+    setInvoiceTime(getCurrentTimeStr());
     setDueDate('');
     setPaymentStatus('Paid');
     setAmountPaid('');
@@ -400,6 +406,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       state: inv.customer?.state || business?.state || 'Maharashtra'
     });
     setInvoiceDate(inv.invoice_date || new Date().toISOString().split('T')[0]);
+    setInvoiceTime(inv.invoice_time || getCurrentTimeStr());
     setDueDate(inv.due_date || '');
     setPaymentStatus(inv.payment_status || 'Paid');
     setAmountPaid(inv.amount_paid || '');
@@ -448,6 +455,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     const draftInv = {
       invoice_number: editingInvoice ? editingInvoice.invoice_number : 'DRAFT / PREVIEW',
       invoice_date: invoiceDate,
+      invoice_time: invoiceTime,
       customer: {
         ...customer,
         name: customer.name || 'Walk-in Customer'
@@ -537,6 +545,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         },
         items: validItems,
         invoice_date: invoiceDate,
+        invoice_time: invoiceTime,
         due_date: dueDate,
         invoice_level_discount_type: invDiscountType,
         invoice_level_discount_value: invDiscountValue === '' ? 0 : parseFloat(invDiscountValue) || 0,
@@ -772,12 +781,6 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
               <option value="Partially Paid">Partially Paid</option>
             </select>
 
-            {isAdmin && (
-              <button onClick={() => setShowSettingsModal(true)} className="btn btn-secondary">
-                ⚙️ GST & SMS Setup
-              </button>
-            )}
-
             <button onClick={handleOpenCreate} className="btn btn-primary">
               <span>+</span> Create New Invoice
             </button>
@@ -792,7 +795,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
             <tr>
               <th>Invoice No</th>
               <th>Customer</th>
-              <th>Issue Date</th>
+              <th>Issue Date & Time</th>
               <th>Supply State</th>
               <th style={{ textAlign: 'right' }}>Taxable Value</th>
               <th style={{ textAlign: 'right' }}>Total Amount</th>
@@ -834,7 +837,10 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       {inv.customer?.gstin ? <span>GSTIN: {inv.customer.gstin}</span> : <span>Unregistered</span>}
                     </div>
                   </td>
-                  <td style={{ color: 'var(--color-muted)' }}>{inv.invoice_date}</td>
+                  <td style={{ color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{inv.invoice_date}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>{inv.invoice_time || '—'}</div>
+                  </td>
                   <td>
                     <span style={{ fontSize: '11.5px', fontWeight: 500 }}>
                       {inv.customer?.state || 'Local'}
@@ -1028,6 +1034,29 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       value={customer.billing_address}
                       onChange={(e) => setCustomer({ ...customer, billing_address: e.target.value })}
                     />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Invoice Date *</label>
+                      <input
+                        type="date"
+                        required
+                        className="form-input"
+                        value={invoiceDate}
+                        onChange={(e) => setInvoiceDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Invoice Time *</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={invoiceTime}
+                        onChange={(e) => setInvoiceTime(e.target.value)}
+                        placeholder="e.g. 03:45 PM"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1300,33 +1329,21 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 <div>
                   {/* Header of Preview */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--color-forest)', paddingBottom: '14px', marginBottom: '14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <img
-                        src="/logo.png"
-                        alt="HisabKitab"
-                        style={{
-                          width: '42px',
-                          height: '42px',
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                          border: '1px solid var(--color-stone)'
-                        }}
-                      />
-                      <div>
-                        <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--color-forest)', margin: 0 }}>
-                          {business?.business_name || 'My Business'}
-                        </h3>
-                        <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px' }}>
-                          {business?.address || 'Business Address'}
-                          <br />
-                          <b>GSTIN:</b> {business?.gstin || '27AAAAA0000A1Z5'} | State: {business?.state || 'Maharashtra'}
-                        </div>
+                    <div>
+                      <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--color-forest)', margin: 0 }}>
+                        {business?.business_name || 'My Business'}
+                      </h3>
+                      <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                        {business?.address || 'Business Address'}
+                        <br />
+                        <b>GSTIN:</b> {business?.gstin || '27AAAAA0000A1Z5'} | State: {business?.state || 'Maharashtra'}
                       </div>
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--color-forest)' }}>TAX INVOICE</div>
                       <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>Date: {invoiceDate}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>Time: {invoiceTime}</div>
                       <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                         <span className={`status-pill ${paymentStatus === 'Paid' ? 'status-paid' : paymentStatus === 'Partially Paid' ? 'status-partial' : 'status-unpaid'}`}>
                           {paymentStatus.toUpperCase()}
@@ -1535,7 +1552,9 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                   <div>State: {selectedInvoice.customer?.state}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: 'var(--color-muted)' }}>Date: {selectedInvoice.invoice_date}</div>
+                  <div style={{ color: 'var(--color-muted)', fontSize: '12px' }}>
+                    <b>Issue Date & Time:</b> {selectedInvoice.invoice_date} {selectedInvoice.invoice_time ? `• ${selectedInvoice.invoice_time}` : ''}
+                  </div>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--color-forest)', margin: '4px 0' }}>
                     ₹{selectedInvoice.final_payable_amount.toFixed(2)}
                   </div>
@@ -1768,33 +1787,26 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           ==================================================================== */}
       {printInvoice && (
         <div id="print-tax-invoice" className="print-sheet-area">
-          {/* Header with Business Details and Logo */}
+          {/* Header with Business Details */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #243C32', paddingBottom: '12px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <img
-                src="/logo.png"
-                alt="Logo"
-                style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover' }}
-              />
-              <div>
-                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#243C32', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
-                  {printInvoice.seller_snapshot?.business_name || business?.business_name || 'Akhtar Enterprises'}
-                </h2>
-                <div style={{ fontSize: '11.5px', color: '#444444', marginTop: '3px' }}>
-                  {printInvoice.seller_snapshot?.address || business?.address || 'Main Market Road'}
-                </div>
-                <div style={{ fontSize: '11px', color: '#444444' }}>
-                  <b>GSTIN:</b> {printInvoice.seller_snapshot?.gstin || business?.gstin || '27AAAAA0000A1Z5'}
-                  {(printInvoice.seller_snapshot?.phone || business?.phone) && (
-                    <span> • <b>Tel:</b> {printInvoice.seller_snapshot?.phone || business?.phone}</span>
-                  )}
-                  {(printInvoice.seller_snapshot?.email || business?.email) && (
-                    <span> • <b>Email:</b> {printInvoice.seller_snapshot?.email || business?.email}</span>
-                  )}
-                </div>
-                <div style={{ fontSize: '11px', color: '#444444' }}>
-                  <b>State:</b> {printInvoice.seller_snapshot?.state || business?.state || 'Maharashtra'}
-                </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#243C32', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+                {printInvoice.seller_snapshot?.business_name || business?.business_name || 'Akhtar Enterprises'}
+              </h2>
+              <div style={{ fontSize: '11.5px', color: '#444444', marginTop: '3px' }}>
+                {printInvoice.seller_snapshot?.address || business?.address || 'Main Market Road'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#444444' }}>
+                <b>GSTIN:</b> {printInvoice.seller_snapshot?.gstin || business?.gstin || '27AAAAA0000A1Z5'}
+                {(printInvoice.seller_snapshot?.phone || business?.phone) && (
+                  <span> • <b>Tel:</b> {printInvoice.seller_snapshot?.phone || business?.phone}</span>
+                )}
+                {(printInvoice.seller_snapshot?.email || business?.email) && (
+                  <span> • <b>Email:</b> {printInvoice.seller_snapshot?.email || business?.email}</span>
+                )}
+              </div>
+              <div style={{ fontSize: '11px', color: '#444444' }}>
+                <b>State:</b> {printInvoice.seller_snapshot?.state || business?.state || 'Maharashtra'}
               </div>
             </div>
 
@@ -1807,6 +1819,9 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
               </div>
               <div style={{ fontSize: '12px', color: '#555555' }}>
                 <b>Date:</b> {printInvoice.invoice_date}
+              </div>
+              <div style={{ fontSize: '12px', color: '#555555' }}>
+                <b>Time:</b> {printInvoice.invoice_time || getCurrentTimeStr()}
               </div>
               {printInvoice.due_date && (
                 <div style={{ fontSize: '11.5px', color: '#555555' }}>
@@ -1971,10 +1986,8 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
 
           {/* Signatures & Footer */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '28px', paddingTop: '10px', borderTop: '1px solid #D8D0C2' }}>
-            <div style={{ fontSize: '10px', color: '#666666' }}>
-              This is a computer-generated tax invoice issued in accordance with GST Rules.
-              <br />
-              Software: <b>HisabKitab</b> — Billing, Inventory & Business Management
+            <div style={{ fontSize: '10.5px', color: '#666666' }}>
+              This is an authentic computer-generated tax invoice issued in accordance with Indian GST Rules.
             </div>
 
             <div style={{ textAlign: 'center', minWidth: '180px' }}>
