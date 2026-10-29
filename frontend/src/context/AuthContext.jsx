@@ -6,7 +6,13 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [business, setBusiness] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('hisabkitab_token'));
+  const [token, setToken] = useState(() => {
+    // Clean any permanent tokens so opening in a new tab/session always requires login for security
+    try {
+      localStorage.removeItem('hisabkitab_token');
+    } catch (e) {}
+    return sessionStorage.getItem('hisabkitab_token');
+  });
   const [isLoading, setIsLoading] = useState(true);
   const { showToast } = useToast();
 
@@ -44,6 +50,7 @@ export const AuthProvider = ({ children }) => {
         setUser(data.user);
         setBusiness(data.business);
       } else {
+        sessionStorage.removeItem('hisabkitab_token');
         localStorage.removeItem('hisabkitab_token');
         setToken(null);
         setUser(null);
@@ -70,7 +77,9 @@ export const AuthProvider = ({ children }) => {
       if (!res.ok) {
         throw new Error(data.detail || 'Login failed.');
       }
-      localStorage.setItem('hisabkitab_token', data.token);
+      // Store in sessionStorage so closing tab forces fresh signin for security
+      sessionStorage.setItem('hisabkitab_token', data.token);
+      localStorage.removeItem('hisabkitab_token');
       setToken(data.token);
       setUser(data.user);
       showToast(`Welcome back, ${data.user.full_name}!`, 'success');
@@ -92,7 +101,8 @@ export const AuthProvider = ({ children }) => {
       if (!res.ok) {
         throw new Error(data.detail || 'Sign up failed.');
       }
-      localStorage.setItem('hisabkitab_token', data.token);
+      sessionStorage.setItem('hisabkitab_token', data.token);
+      localStorage.removeItem('hisabkitab_token');
       setToken(data.token);
       setUser(data.user);
       showToast(`Welcome to HisabKitab, ${data.user.full_name}! Your account is ready.`, 'success');
@@ -104,6 +114,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    sessionStorage.removeItem('hisabkitab_token');
     localStorage.removeItem('hisabkitab_token');
     setToken(null);
     setUser(null);

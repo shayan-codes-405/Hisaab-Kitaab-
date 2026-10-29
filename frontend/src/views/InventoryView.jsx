@@ -28,7 +28,7 @@ export const InventoryView = () => {
   const initialForm = {
     name: '',
     sku: '',
-    category: 'General Goods',
+    category: 'Stationery',
     unit: 'Pcs',
     purchase_price: '',
     selling_price: '',
@@ -471,7 +471,7 @@ export const InventoryView = () => {
                       type="text"
                       required
                       className="form-input"
-                      placeholder="e.g. Paracetamol 500mg or Brake Pad Set"
+                      placeholder="e.g. Reynolds 045 Ball Pen or Classmate A4 Notebook"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />
@@ -483,7 +483,7 @@ export const InventoryView = () => {
                       type="text"
                       required
                       className="form-input"
-                      placeholder="e.g. MED-001 or AUTO-BP4"
+                      placeholder="e.g. STAT-PEN-01 or STAT-NOTE-01"
                       value={formData.sku}
                       onChange={(e) => setFormData({ ...formData, sku: e.target.value.toUpperCase() })}
                     />
@@ -497,7 +497,7 @@ export const InventoryView = () => {
                       type="text"
                       required
                       className="form-input"
-                      placeholder="e.g. Stationery, Pharmacy, Automobile, Hardware"
+                      placeholder="e.g. Stationery, Paper, Office Supplies"
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     />

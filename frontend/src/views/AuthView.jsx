@@ -6,14 +6,13 @@ export const AuthView = () => {
   const [mode, setMode] = useState('signup'); // 'login' or 'signup'
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Login form state
-  const [loginForm, setLoginForm] = useState({
+  // Blank initial forms
+  const emptyLogin = {
     username: '',
     password: ''
-  });
+  };
 
-  // Sign up form state
-  const [signupForm, setSignupForm] = useState({
+  const emptySignup = {
     username: '',
     password: '',
     full_name: '',
@@ -24,22 +23,41 @@ export const AuthView = () => {
     email: '',
     state: 'Maharashtra',
     address: ''
-  });
+  };
+
+  // Form states
+  const [loginForm, setLoginForm] = useState(emptyLogin);
+  const [signupForm, setSignupForm] = useState(emptySignup);
+
+  const switchMode = (newMode) => {
+    setMode(newMode);
+    // Erase all entered credentials from interface
+    setLoginForm({ ...emptyLogin });
+    setSignupForm({ ...emptySignup });
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!loginForm.username || !loginForm.password) return;
     setIsSubmitting(true);
-    await login(loginForm.username, loginForm.password);
+    const success = await login(loginForm.username, loginForm.password);
     setIsSubmitting(false);
+    if (success) {
+      setLoginForm({ ...emptyLogin });
+    }
   };
 
   const handleSignup = async (e) => {
     e.preventDefault();
     if (!signupForm.username || !signupForm.password || !signupForm.full_name) return;
     setIsSubmitting(true);
-    await signup(signupForm);
+    const success = await signup(signupForm);
     setIsSubmitting(false);
+    // Erase all details from interface immediately after signup
+    if (success) {
+      setSignupForm({ ...emptySignup });
+      setLoginForm({ ...emptyLogin });
+    }
   };
 
   return (
@@ -110,7 +128,7 @@ export const AuthView = () => {
           >
             <button
               type="button"
-              onClick={() => setMode('login')}
+              onClick={() => switchMode('login')}
               style={{
                 border: 'none',
                 background: mode === 'login' ? 'var(--color-copper)' : 'transparent',
@@ -127,7 +145,7 @@ export const AuthView = () => {
             </button>
             <button
               type="button"
-              onClick={() => setMode('signup')}
+              onClick={() => switchMode('signup')}
               style={{
                 border: 'none',
                 background: mode === 'signup' ? 'var(--color-copper)' : 'transparent',
@@ -195,7 +213,7 @@ export const AuthView = () => {
               <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '12.5px', color: 'var(--color-muted)' }}>
                 Don't have an account?{' '}
                 <span
-                  onClick={() => setMode('signup')}
+                  onClick={() => switchMode('signup')}
                   style={{ color: 'var(--color-copper)', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Create one now
@@ -356,7 +374,7 @@ export const AuthView = () => {
               <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '12.5px', color: 'var(--color-muted)' }}>
                 Already registered?{' '}
                 <span
-                  onClick={() => setMode('login')}
+                  onClick={() => switchMode('login')}
                   style={{ color: 'var(--color-copper)', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Sign in here
