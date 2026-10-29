@@ -252,19 +252,27 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     const copy = [...items];
     const found = products.find((p) => p.id === pId);
     if (found) {
+      const baseU = (found.unit && found.unit.toLowerCase() !== (found.package_unit || '').toLowerCase()) 
+        ? found.unit 
+        : 'Pcs';
+      const pkgU = (found.package_unit && found.package_unit.toLowerCase() !== baseU.toLowerCase()) 
+        ? found.package_unit 
+        : '';
+      const pkgQty = found.package_qty > 1 ? found.package_qty : 1;
+
       copy[idx] = {
         ...copy[idx],
         product_id: found.id,
         name: found.name,
         sku: found.sku,
-        unit: found.unit || 'Pcs',
-        base_unit: found.unit || 'Pcs',
+        unit: baseU,
+        base_unit: baseU,
         conversion_factor: 1.0,
         unit_price: found.selling_price || 0,
         base_selling_price: found.selling_price || 0,
-        package_unit: found.package_unit || '',
-        package_qty: found.package_qty || 1,
-        package_selling_price: found.package_selling_price || 0,
+        package_unit: pkgU,
+        package_qty: pkgQty,
+        package_selling_price: found.package_selling_price || (found.selling_price * pkgQty),
         gst_rate: found.gst_rate ?? 18,
         batch_number: found.batch_number || '',
         expiry_date: found.expiry_date || '',
@@ -292,29 +300,26 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
   const handleUnitChange = (idx, newUnit) => {
     const copy = [...items];
     const it = copy[idx];
-    if (it.package_unit && newUnit === it.package_unit) {
+    const isPackage = newUnit === 'package' || (it.package_unit && newUnit === it.package_unit);
+    
+    if (isPackage && it.package_unit && it.package_qty > 1) {
       // Selling in packaging unit (e.g. Box of 10 Pcs)
       const pkgPrice = it.package_selling_price > 0 
-        ? it.package_selling_price 
+        ? Number(it.package_selling_price) 
         : (Number(it.base_selling_price || it.unit_price) * (it.package_qty || 1.0));
       copy[idx] = {
         ...it,
-        unit: newUnit,
+        unit: it.package_unit,
         conversion_factor: it.package_qty || 1.0,
         unit_price: pkgPrice
       };
-    } else if (newUnit === it.base_unit) {
-      // Selling in base unit (e.g. Loose Pcs)
+    } else {
+      // Selling in base loose unit (e.g. Loose Pcs)
       copy[idx] = {
         ...it,
-        unit: newUnit,
+        unit: it.base_unit || 'Pcs',
         conversion_factor: 1.0,
         unit_price: it.base_selling_price || it.unit_price || 0
-      };
-    } else {
-      copy[idx] = {
-        ...it,
-        unit: newUnit
       };
     }
     setItems(copy);
@@ -1118,24 +1123,32 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                             value={it.quantity}
                             onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
                           />
-                          {it.conversion_factor && it.conversion_factor > 1 ? (
-                            <div style={{ fontSize: '9.5px', color: 'var(--color-copper)', fontWeight: 600, marginTop: '2px' }}>
-                              = {(Number(it.quantity || 0) * Number(it.conversion_factor || 1)).toFixed(2).replace(/\.00$/, '')} {it.base_unit || 'Pcs'} stock
+                          {it.package_unit && it.package_qty > 1 ? (
+                            <div style={{ fontSize: '10px', color: 'var(--color-forest)', fontWeight: 600, marginTop: '2px' }}>
+                              {it.unit === it.package_unit ? (
+                                <span>📦 = {(Number(it.quantity || 0) * Number(it.package_qty || 1)).toFixed(1).replace(/\.0$/, '')} {it.base_unit || 'Pcs'} stock deducted</span>
+                              ) : (
+                                <span>📦 = {Number(it.quantity || 0)} loose {it.base_unit || 'Pcs'} stock deducted</span>
+                              )}
                             </div>
                           ) : null}
                         </div>
 
                         <div>
                           <label className="form-label" style={{ fontSize: '10px' }}>Selling Unit</label>
-                          {it.package_unit ? (
+                          {it.package_unit && it.package_qty > 1 ? (
                             <select
                               className="form-select"
-                              value={it.unit}
+                              value={it.unit === it.package_unit ? 'package' : 'base'}
                               onChange={(e) => handleUnitChange(idx, e.target.value)}
-                              style={{ fontSize: '11px' }}
+                              style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-forest)' }}
                             >
-                              <option value={it.base_unit || 'Pcs'}>{it.base_unit || 'Pcs'} (Single)</option>
-                              <option value={it.package_unit}>{it.package_unit} ({it.package_qty} {it.base_unit || 'Pcs'})</option>
+                              <option value="base">
+                                {it.base_unit || 'Pcs'} (Loose 1 Pc) — ₹{Number(it.base_selling_price || it.unit_price).toFixed(2)}
+                              </option>
+                              <option value="package">
+                                {it.package_unit} (Full {it.package_qty} {it.base_unit || 'Pcs'}) — ₹{Number(it.package_selling_price || (Number(it.base_selling_price) * it.package_qty)).toFixed(2)}
+                              </option>
                             </select>
                           ) : (
                             <select
