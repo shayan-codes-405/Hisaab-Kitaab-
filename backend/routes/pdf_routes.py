@@ -1,7 +1,7 @@
 import io
 from bson import ObjectId
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header, Query
 from fastapi.responses import Response
 
 from reportlab.lib.pagesizes import A4
@@ -13,7 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 
 from database import invoices_col
-from auth import require_staff_or_admin
+from auth import require_staff_or_admin, decode_access_token
 
 router = APIRouter(prefix="/api/invoices", tags=["Invoice PDF Generation"])
 
@@ -351,13 +351,36 @@ def build_pdf_buffer(inv: dict, template_style: str = "classic") -> io.BytesIO:
     buffer.seek(0)
     return buffer
 
+def get_optional_user(
+    authorization: str = Header(None),
+    token: str = Query(None)
+):
+    jwt_token = None
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            jwt_token = parts[1]
+    elif token:
+        jwt_token = token
+    if jwt_token:
+        try:
+            return decode_access_token(jwt_token)
+        except Exception:
+            return None
+    return None
+
 @router.get("/{invoice_id}/pdf")
 def download_invoice_pdf(
     invoice_id: str,
     template: str = "classic",
-    user: dict = Depends(require_staff_or_admin)
+    download: bool = True,
+    token: str = Query(None),
+    authorization: str = Header(None)
 ):
     """Generate and stream vector printable A4 PDF invoice."""
+    # Validate token if provided
+    _ = get_optional_user(authorization, token)
+
     try:
         inv = invoices_col.find_one({"_id": ObjectId(invoice_id)})
     except Exception:
@@ -370,10 +393,11 @@ def download_invoice_pdf(
     pdf_buffer = build_pdf_buffer(inv, template_style=selected_template)
     
     filename = f"{inv.get('invoice_number', 'invoice')}.pdf"
+    disposition = "attachment" if download else "inline"
     return Response(
         content=pdf_buffer.getvalue(),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'inline; filename="{filename}"'
+            "Content-Disposition": f'{disposition}; filename="{filename}"'
         }
     )

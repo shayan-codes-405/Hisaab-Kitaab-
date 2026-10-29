@@ -2,6 +2,232 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
+// Isolated, reliable printing engine via dynamic iframe
+export const printInvoiceViaIframe = (inv, seller) => {
+  if (!inv) return;
+  const oldFrame = document.getElementById('hk-print-frame');
+  if (oldFrame) oldFrame.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'hk-print-frame';
+  iframe.style.position = 'fixed';
+  iframe.style.top = '-9999px';
+  iframe.style.left = '-9999px';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+
+  const bName = seller?.business_name || inv.seller_snapshot?.business_name || 'Akhtar Enterprises';
+  const bAddr = seller?.address || inv.seller_snapshot?.address || '';
+  const bGstin = seller?.gstin || inv.seller_snapshot?.gstin || '';
+  const bPhone = seller?.phone || inv.seller_snapshot?.phone || '';
+  const bEmail = seller?.email || inv.seller_snapshot?.email || '';
+  const bState = seller?.state || inv.seller_snapshot?.state || 'Maharashtra';
+  const bankName = seller?.bank_name || inv.seller_snapshot?.bank_name || '';
+  const bankAcc = seller?.bank_account_no || inv.seller_snapshot?.bank_account_no || '';
+  const bankIfsc = seller?.bank_ifsc || inv.seller_snapshot?.bank_ifsc || '';
+  const upiId = seller?.upi_id || inv.seller_snapshot?.upi_id || '';
+  const terms = seller?.terms_conditions || inv.seller_snapshot?.terms_conditions || '1. Goods once sold are not returnable. 2. Interest @ 18% p.a. charged after due date.';
+
+  const isInter = inv.is_interstate;
+  const items = inv.items || [];
+
+  const itemsHtml = items.map((it, idx) => {
+    const itTax = Number(it.tax_amount ?? ((it.cgst_amount || 0) + (it.sgst_amount || 0) + (it.igst_amount || 0)));
+    return `
+      <tr>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: center;">${idx + 1}</td>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2;">
+          <div style="font-weight: 700; color: #111;">${it.name || 'Item'}</div>
+          ${it.sku ? `<div style="font-size: 10px; color: #666;">SKU: ${it.sku}</div>` : ''}
+          ${it.batch_number ? `<div style="font-size: 10px; color: #666;">Batch: ${it.batch_number}</div>` : ''}
+        </td>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: right;">${it.quantity} ${it.unit || 'Pcs'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: right;">₹${Number(it.unit_price || 0).toFixed(2)}</td>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: right; color: #991B1B;">${Number(it.discount_amount || 0) > 0 ? `₹${Number(it.discount_amount).toFixed(2)}` : '-'}</td>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: right;">₹${Number(it.taxable_amount || 0).toFixed(2)}</td>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: center;">${it.gst_rate ?? 18}%</td>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: right;">₹${itTax.toFixed(2)}</td>
+        <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: right; font-weight: 700;">₹${Number(it.line_total || 0).toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Tax Invoice - ${inv.invoice_number}</title>
+      <style>
+        @page {
+          size: A4 portrait;
+          margin: 10mm;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { font-size: 10pt; color: #1a1a1a; line-height: 1.35; padding: 12px; }
+        .header-table { width: 100%; border-bottom: 2.5px solid #243C32; padding-bottom: 12px; margin-bottom: 14px; }
+        .biz-title { font-size: 18pt; font-weight: 800; color: #243C32; text-transform: uppercase; letter-spacing: -0.02em; margin-bottom: 3px; }
+        .inv-title { font-size: 16pt; font-weight: 800; color: #243C32; text-align: right; letter-spacing: 0.05em; }
+        .meta-box { border: 1px solid #D8D0C2; border-radius: 4px; padding: 10px 12px; margin-bottom: 14px; background: #fafafa; }
+        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 9.5pt; }
+        .items-table th { background: #243C32; color: #fff; padding: 7px 8px; text-align: left; font-weight: 700; border: 1px solid #243C32; }
+        .summary-table { width: 100%; border-collapse: collapse; font-size: 10pt; border: 1px solid #D8D0C2; }
+        .summary-table td { padding: 5px 10px; border-bottom: 1px solid #E5E0D8; }
+        .status-badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; background: #e9f5ee; color: #1d603a; border: 1px solid #bde4cc; }
+      </style>
+    </head>
+    <body>
+      <table class="header-table" style="width: 100%;">
+        <tr>
+          <td style="vertical-align: top;">
+            <div class="biz-title">${bName}</div>
+            ${bAddr ? `<div style="font-size: 9.5pt; color: #444;">${bAddr}</div>` : ''}
+            <div style="font-size: 9pt; color: #444; margin-top: 2px;">
+              ${bGstin ? `<b>GSTIN:</b> ${bGstin} • ` : ''}<b>State:</b> ${bState}
+              ${bPhone ? ` • <b>Tel:</b> ${bPhone}` : ''}
+              ${bEmail ? ` • <b>Email:</b> ${bEmail}` : ''}
+            </div>
+          </td>
+          <td style="vertical-align: top; text-align: right; width: 220px;">
+            <div class="inv-title">TAX INVOICE</div>
+            <div style="font-size: 10pt; margin-top: 4px;"><b>Invoice No:</b> <span style="font-family: monospace; font-weight: 700;">${inv.invoice_number}</span></div>
+            <div style="font-size: 9.5pt; color: #555;"><b>Date:</b> ${inv.invoice_date} ${inv.invoice_time ? `• ${inv.invoice_time}` : ''}</div>
+            ${inv.due_date ? `<div style="font-size: 9pt; color: #555;"><b>Due Date:</b> ${inv.due_date}</div>` : ''}
+            <div style="margin-top: 4px;"><span class="status-badge">${inv.payment_status || 'Paid'}</span> (${inv.payment_mode || 'Cash'})</div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Customer / Place of Supply Box -->
+      <table class="meta-box" style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="vertical-align: top; width: 60%; padding: 4px 6px;">
+            <div style="font-size: 8.5pt; font-weight: 800; color: #243C32; text-transform: uppercase; margin-bottom: 2px;">Billed To (Customer):</div>
+            <div style="font-size: 11pt; font-weight: 700; color: #111;">${inv.customer?.name || 'Walk-in Customer'}</div>
+            ${inv.customer?.billing_address ? `<div style="font-size: 9pt; color: #444;">${inv.customer.billing_address}</div>` : ''}
+            <div style="font-size: 9pt; color: #444;"><b>Phone:</b> ${inv.customer?.phone || 'N/A'}${inv.customer?.email ? ` • <b>Email:</b> ${inv.customer.email}` : ''}</div>
+            <div style="font-size: 9pt; color: #444;"><b>GSTIN:</b> ${inv.customer?.gstin || 'Unregistered Consumer'}</div>
+          </td>
+          <td style="vertical-align: top; width: 40%; text-align: right; padding: 4px 6px;">
+            <div style="font-size: 8.5pt; font-weight: 800; color: #243C32; text-transform: uppercase; margin-bottom: 2px;">Place of Supply:</div>
+            <div style="font-size: 10pt; font-weight: 700;">${inv.customer?.state || bState}</div>
+            <div style="font-size: 9pt; color: #555; margin-top: 2px;">
+              Nature: <b>${isInter ? 'Inter-State (IGST)' : 'Intra-State (CGST + SGST)'}</b>
+            </div>
+            <div style="font-size: 8.5pt; color: #666;">Reverse Charge: <b>No</b></div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Items Table -->
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th style="width: 28px; text-align: center;">#</th>
+            <th>Item Description</th>
+            <th style="width: 65px; text-align: right;">Qty</th>
+            <th style="width: 75px; text-align: right;">Unit Rate</th>
+            <th style="width: 65px; text-align: right;">Disc</th>
+            <th style="width: 75px; text-align: right;">Taxable</th>
+            <th style="width: 55px; text-align: center;">GST %</th>
+            <th style="width: 75px; text-align: right;">Tax (₹)</th>
+            <th style="width: 85px; text-align: right;">Total (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+
+      <!-- Bottom: Bank Details & Summary -->
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 18px;">
+        <tr>
+          <td style="vertical-align: top; width: 55%; padding-right: 14px;">
+            <div style="border: 1px solid #D8D0C2; border-radius: 4px; padding: 8px 10px; margin-bottom: 8px; font-size: 9pt; background: #fafafa;">
+              <div style="font-weight: 800; color: #243C32; text-transform: uppercase; margin-bottom: 3px;">Bank & Payment Details:</div>
+              ${bankName ? `<div><b>Bank:</b> ${bankName}</div>` : ''}
+              ${bankAcc ? `<div><b>A/C No:</b> ${bankAcc}</div>` : ''}
+              ${bankIfsc ? `<div><b>IFSC:</b> ${bankIfsc}</div>` : ''}
+              ${upiId ? `<div><b>UPI ID:</b> ${upiId}</div>` : ''}
+            </div>
+            ${inv.notes ? `<div style="font-size: 8.5pt; color: #555; font-style: italic; margin-bottom: 6px;"><b>Notes:</b> ${inv.notes}</div>` : ''}
+            <div style="font-size: 8pt; color: #666; border-top: 1px dashed #D8D0C2; padding-top: 4px;">
+              <b>Terms & Conditions:</b> ${terms}
+            </div>
+          </td>
+          <td style="vertical-align: top; width: 45%;">
+            <table class="summary-table">
+              <tr>
+                <td style="color: #555;">Subtotal (Gross):</td>
+                <td style="text-align: right; font-weight: 600;">₹${Number(inv.subtotal_gross || 0).toFixed(2)}</td>
+              </tr>
+              ${(Number(inv.total_line_discounts || 0) + Number(inv.invoice_discount_amount || 0)) > 0 ? `
+                <tr style="color: #991B1B;">
+                  <td>Total Discounts:</td>
+                  <td style="text-align: right; font-weight: 600;">- ₹${(Number(inv.total_line_discounts || 0) + Number(inv.invoice_discount_amount || 0)).toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              <tr style="background: #F8F6F2;">
+                <td style="font-weight: 700;">Taxable Value:</td>
+                <td style="text-align: right; font-weight: 700;">₹${Number(inv.total_net_taxable || 0).toFixed(2)}</td>
+              </tr>
+              ${isInter ? `
+                <tr>
+                  <td style="color: #555;">IGST:</td>
+                  <td style="text-align: right; font-weight: 600;">₹${Number(inv.total_igst || 0).toFixed(2)}</td>
+                </tr>
+              ` : `
+                <tr>
+                  <td style="color: #555;">CGST:</td>
+                  <td style="text-align: right; font-weight: 600;">₹${Number(inv.total_cgst || 0).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="color: #555;">SGST:</td>
+                  <td style="text-align: right; font-weight: 600;">₹${Number(inv.total_sgst || 0).toFixed(2)}</td>
+                </tr>
+              `}
+              <tr style="background: #243C32; color: #fff; font-size: 11pt;">
+                <td style="font-weight: 800; padding: 7px 10px;">Final Payable:</td>
+                <td style="text-align: right; font-weight: 900; padding: 7px 10px;">₹${Number(inv.final_payable_amount || 0).toFixed(2)}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Signatures Footer -->
+      <table style="width: 100%; border-top: 1px solid #D8D0C2; padding-top: 12px; margin-top: 18px;">
+        <tr>
+          <td style="font-size: 8.5pt; color: #666; vertical-align: bottom;">
+            Computer-generated GST Tax Invoice. Valid without physical stamp.
+          </td>
+          <td style="text-align: center; width: 200px; vertical-align: bottom;">
+            <div style="font-size: 9pt; font-weight: 700; color: #243C32;">For ${bName}</div>
+            <div style="height: 38px;"></div>
+            <div style="border-top: 1px solid #333; font-size: 9pt; font-weight: 600; padding-top: 3px;">
+              Authorized Signatory
+            </div>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  doc.open();
+  doc.write(htmlContent);
+  doc.close();
+
+  iframe.contentWindow.focus();
+  setTimeout(() => {
+    iframe.contentWindow.print();
+  }, 250);
+};
+
 export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onClearViewInvoiceId, autoOpenCreator = false, onResetAutoOpen = null }) => {
   const { apiFetch, business, refreshBusiness, isAdmin } = useAuth();
   const { showToast } = useToast();
@@ -446,10 +672,39 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
   };
 
   const handlePrint = (inv) => {
+    if (!inv) return;
     setPrintInvoice(inv);
-    setTimeout(() => {
-      window.print();
-    }, 180);
+    printInvoiceViaIframe(inv, business);
+  };
+
+  const handleDownloadPDF = async (inv) => {
+    if (!inv || !inv.id) {
+      showToast('Invoice ID is missing', 'error');
+      return;
+    }
+    try {
+      showToast(`Downloading PDF for ${inv.invoice_number}...`, 'info', 2000);
+      const res = await apiFetch(`/api/invoices/${inv.id}/pdf?download=true`);
+      if (!res.ok) {
+        throw new Error('Failed to generate PDF from server');
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${inv.invoice_number || 'invoice'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+      }, 500);
+      showToast(`✓ Invoice ${inv.invoice_number} PDF downloaded!`, 'success');
+    } catch (err) {
+      console.error('PDF download error:', err);
+      window.open(`/api/invoices/${inv.id}/pdf?download=true`, '_blank');
+      showToast('Opening PDF in new tab...', 'info');
+    }
   };
 
   const handlePrintDraft = () => {
@@ -506,8 +761,8 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
   };
 
   // Submit Invoice Creation & SMS
-  const handleCreateInvoice = async (e) => {
-    e.preventDefault();
+  const handleCreateInvoice = async (e, shouldPrint = false) => {
+    if (e && e.preventDefault) e.preventDefault();
     if (!customer.name.trim()) {
       showToast('Please enter customer name.', 'error');
       return;
@@ -590,6 +845,29 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         } else {
           showToast(`✓ Invoice SMS dispatched to ${customer.phone} via TextBee!`, 'success', 5000);
         }
+      }
+
+      // If user clicked "Issue & Print", immediately print invoice
+      if (shouldPrint) {
+        const fullInv = {
+          ...payload,
+          id: data.id,
+          invoice_number: data.invoice_number || (editingInvoice ? editingInvoice.invoice_number : 'INV-NEW'),
+          items: (calculation?.processed_items && calculation.processed_items.length > 0) ? calculation.processed_items : validItems,
+          subtotal_gross: calculation?.subtotal_gross || 0,
+          total_line_discounts: calculation?.total_line_discounts || 0,
+          invoice_discount_amount: calculation?.invoice_discount_amount || 0,
+          total_net_taxable: calculation?.total_net_taxable || 0,
+          total_cgst: calculation?.total_cgst || 0,
+          total_sgst: calculation?.total_sgst || 0,
+          total_igst: calculation?.total_igst || 0,
+          total_tax: calculation?.total_tax || 0,
+          final_payable_amount: data.final_payable_amount || calculation?.final_payable_amount || 0,
+          payment_status: paymentStatus,
+          payment_mode: paymentMode,
+          seller_snapshot: business
+        };
+        printInvoiceViaIframe(fullInv, business);
       }
 
       // Reset
@@ -880,15 +1158,13 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                   </td>
                   <td className="table-sticky-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <a
-                        href={`/api/invoices/${inv.id}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        onClick={() => handleDownloadPDF(inv)}
                         className="btn btn-copper btn-xs"
                         title="Download Printable PDF"
                       >
                         📄 PDF
-                      </a>
+                      </button>
                       <button
                         onClick={() => handlePrint(inv)}
                         className="btn btn-secondary btn-xs"
@@ -954,9 +1230,19 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                   </div>
                 </div>
               </div>
-              <button onClick={() => setShowCreatorModal(false)} className="btn btn-ghost btn-sm" style={{ fontSize: '16px' }}>
-                ✕
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handlePrintDraft}
+                  className="btn btn-secondary btn-sm"
+                  title="Print live invoice draft"
+                >
+                  🖨️ Print Draft
+                </button>
+                <button onClick={() => setShowCreatorModal(false)} className="btn btn-ghost btn-sm" style={{ fontSize: '16px' }}>
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="modal-body invoice-creator-body">
@@ -1483,18 +1769,36 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
               </div>
             </div>
 
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ flexWrap: 'wrap', gap: '8px' }}>
               <button type="button" onClick={() => setShowCreatorModal(false)} className="btn btn-secondary">
                 Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintDraft}
+                className="btn btn-secondary"
+                title="Print draft without saving"
+              >
+                🖨️ Print Draft
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleCreateInvoice(e, true)}
+                disabled={isSubmitting}
+                className="btn btn-copper"
+                style={{ fontWeight: 700 }}
+                title="Save invoice, deduct stock, and print immediately"
+              >
+                {isSubmitting ? 'Saving...' : '🖨️ Save & Print'}
               </button>
               <button
                 type="submit"
                 form="invoice-create-form"
                 disabled={isSubmitting}
                 className="btn btn-primary"
-                style={{ padding: '10px 24px' }}
+                style={{ padding: '8px 20px' }}
               >
-                {isSubmitting ? 'Saving...' : editingInvoice ? '✓ Update Invoice & Recalculate' : '✓ Issue Invoice & Save'}
+                {isSubmitting ? 'Saving...' : editingInvoice ? '✓ Update Invoice' : '✓ Save Invoice Only'}
               </button>
             </div>
           </div>
@@ -1512,14 +1816,13 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 Invoice {selectedInvoice.invoice_number}
               </h3>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <a
-                  href={`/api/invoices/${selectedInvoice.id}/pdf`}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => handleDownloadPDF(selectedInvoice)}
                   className="btn btn-copper btn-xs"
+                  title="Download Printable PDF"
                 >
                   📄 PDF
-                </a>
+                </button>
                 <button
                   onClick={() => handlePrint(selectedInvoice)}
                   className="btn btn-secondary btn-xs"
