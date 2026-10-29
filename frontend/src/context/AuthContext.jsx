@@ -3,6 +3,8 @@ import { useToast } from './ToastContext';
 
 const AuthContext = createContext(null);
 
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [business, setBusiness] = useState(null);
@@ -17,6 +19,7 @@ export const AuthProvider = ({ children }) => {
   const { showToast } = useToast();
 
   const apiFetch = async (endpoint, options = {}) => {
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -24,7 +27,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     try {
-      const response = await fetch(endpoint, { ...options, headers });
+      const response = await fetch(url, { ...options, headers });
       if (response.status === 401) {
         logout();
         throw new Error('Session expired. Please log in again.');
@@ -42,7 +45,7 @@ export const AuthProvider = ({ children }) => {
       return;
     }
     try {
-      const res = await fetch('/api/auth/me', {
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -68,7 +71,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -92,7 +95,7 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (formData) => {
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

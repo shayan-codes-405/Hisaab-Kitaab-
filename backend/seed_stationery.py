@@ -181,3 +181,4 @@ if __name__ == '__main__':
     print(f'Done! Total products in catalog: {products_col.count_documents({})}')
     for doc in products_col.find():
         print(f" - {doc['sku']}: {doc['name']} ({doc['stock_qty']} {doc['unit']}) [Pkg: {doc.get('package_unit')} of {doc.get('package_qty')}]")
+

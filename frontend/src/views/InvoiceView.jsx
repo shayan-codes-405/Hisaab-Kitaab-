@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, API_BASE } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 // Isolated, reliable printing engine via dynamic iframe
@@ -702,7 +702,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       showToast(`✓ Invoice ${inv.invoice_number} PDF downloaded!`, 'success');
     } catch (err) {
       console.error('PDF download error:', err);
-      window.open(`/api/invoices/${inv.id}/pdf?download=true`, '_blank');
+      window.open(`${API_BASE}/api/invoices/${inv.id}/pdf?download=true`, '_blank');
       showToast('Opening PDF in new tab...', 'info');
     }
   };

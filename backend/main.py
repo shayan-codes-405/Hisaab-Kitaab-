@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from config import PORT, FRONTEND_ORIGIN
+from config import PORT, FRONTEND_ORIGIN, CORS_ORIGINS
 from database import init_db_indexes
 
 # Import all API routers
@@ -29,7 +29,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS for Vite React frontend
+# Configure CORS for Vite React frontend and Vercel/Render deployments
 origins = [
     FRONTEND_ORIGIN,
     "http://localhost:5173",
@@ -38,13 +38,20 @@ origins = [
     "http://127.0.0.1:3000"
 ]
 
+if CORS_ORIGINS:
+    for extra in CORS_ORIGINS.split(","):
+        extra = extra.strip()
+        if extra and extra not in origins:
+            origins.append(extra)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.onrender\.com|http://localhost:\d+|http://127\.0\.0\.1:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Disposition"]
+    expose_headers=["Content-Disposition", "Content-Type"]
 )
 
 # Register routes

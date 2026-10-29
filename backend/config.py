@@ -21,3 +21,5 @@ TEXTBEE_DEMO_MODE = os.getenv("TEXTBEE_DEMO_MODE", "true").lower() in ("true", "
 
 PORT = int(os.getenv("PORT", "8000"))
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
+
