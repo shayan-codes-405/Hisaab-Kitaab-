@@ -35,6 +35,9 @@ export const InventoryView = () => {
     stock_qty: 0,
     low_stock_threshold: 5,
     gst_rate: 18,
+    package_unit: '',
+    package_qty: 1,
+    package_selling_price: '',
     batch_number: '',
     expiry_date: '',
     part_number: '',
@@ -90,6 +93,9 @@ export const InventoryView = () => {
       stock_qty: p.stock_qty || 0,
       low_stock_threshold: p.low_stock_threshold || 5,
       gst_rate: p.gst_rate ?? 18,
+      package_unit: p.package_unit || '',
+      package_qty: p.package_qty || 1,
+      package_selling_price: p.package_selling_price || '',
       batch_number: p.batch_number || '',
       expiry_date: p.expiry_date || '',
       part_number: p.part_number || '',
@@ -105,9 +111,12 @@ export const InventoryView = () => {
         ...formData,
         purchase_price: parseFloat(formData.purchase_price),
         selling_price: parseFloat(formData.selling_price),
-        stock_qty: parseInt(formData.stock_qty, 10),
-        low_stock_threshold: parseInt(formData.low_stock_threshold, 10),
-        gst_rate: parseFloat(formData.gst_rate)
+        stock_qty: parseFloat(formData.stock_qty) || 0,
+        low_stock_threshold: parseFloat(formData.low_stock_threshold) || 5,
+        gst_rate: parseFloat(formData.gst_rate),
+        package_unit: (formData.package_unit || '').trim(),
+        package_qty: parseFloat(formData.package_qty) || 1.0,
+        package_selling_price: formData.package_selling_price ? parseFloat(formData.package_selling_price) : 0.0
       };
 
       const url = editingProduct ? `/api/inventory/${editingProduct.id}` : '/api/inventory';
@@ -308,6 +317,11 @@ export const InventoryView = () => {
                       <span style={{ color: isOut ? '#991B1B' : isLow ? '#92400E' : 'inherit' }}>
                         {p.stock_qty} {p.unit}
                       </span>
+                      {p.package_unit && p.package_qty > 1 && (
+                        <div style={{ fontSize: '10.5px', color: 'var(--color-muted)', fontWeight: 500, marginTop: '2px' }}>
+                          ≈ {(p.stock_qty / p.package_qty).toFixed(1).replace(/\.0$/, '')} {p.package_unit}s ({p.package_qty} {p.unit}/{p.package_unit})
+                        </div>
+                      )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span
@@ -496,12 +510,61 @@ export const InventoryView = () => {
                     <label className="form-label">Low Stock Threshold</label>
                     <input
                       type="number"
+                      step="any"
                       min="0"
                       required
                       className="form-input"
                       value={formData.low_stock_threshold}
                       onChange={(e) => setFormData({ ...formData, low_stock_threshold: e.target.value })}
                     />
+                  </div>
+                </div>
+
+                {/* Packaging & Multi-Unit Selling Options */}
+                <div style={{ padding: '12px 14px', backgroundColor: 'var(--color-stone-light)', borderRadius: '6px', marginTop: '10px', border: '1px solid var(--color-stone)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-forest)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>📦</span> Packaging & Multi-Unit Selling (Sell in Boxes, Strips, Bags or Single Pieces)
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginBottom: '10px' }}>
+                    Enables selling either loose individual units ({formData.unit || 'Pcs'}) or full/fractional packaging (e.g. 1 Box = 10 Pcs, 0.5 Box = 5 Pcs). Stock is tracked automatically in base units.
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '12px' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Packaging Unit</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. Box, Strip, Pack, Carton, Bag"
+                        value={formData.package_unit}
+                        onChange={(e) => setFormData({ ...formData, package_unit: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">{formData.unit || 'Units'} per Package</label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0.01"
+                        className="form-input"
+                        placeholder="e.g. 10 (1 Box = 10 Pcs)"
+                        value={formData.package_qty}
+                        onChange={(e) => setFormData({ ...formData, package_qty: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Package Selling Price (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="form-input"
+                        placeholder={formData.selling_price && formData.package_qty ? `e.g. ${(formData.selling_price * formData.package_qty).toFixed(2)}` : 'Optional package rate'}
+                        value={formData.package_selling_price}
+                        onChange={(e) => setFormData({ ...formData, package_selling_price: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
 

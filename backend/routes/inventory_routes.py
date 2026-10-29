@@ -16,9 +16,13 @@ class ProductCreate(BaseModel):
     unit: str = "Pcs"
     purchase_price: float = Field(..., ge=0)
     selling_price: float = Field(..., ge=0)
-    stock_qty: int = Field(0, ge=0)
-    low_stock_threshold: int = Field(5, ge=0)
+    stock_qty: float = Field(0.0, ge=0)
+    low_stock_threshold: float = Field(5.0, ge=0)
     gst_rate: float = Field(18.0, ge=0)
+    # Multi-unit & Packaging fields (e.g. 1 Box = 10 Pcs, 1 Strip = 10 Tabs, 1 Bag = 25 Kg)
+    package_unit: Optional[str] = ""
+    package_qty: Optional[float] = 1.0
+    package_selling_price: Optional[float] = 0.0
     # Industry-specific fields
     batch_number: Optional[str] = ""
     expiry_date: Optional[str] = ""
@@ -32,17 +36,21 @@ class ProductUpdate(BaseModel):
     unit: Optional[str] = None
     purchase_price: Optional[float] = None
     selling_price: Optional[float] = None
-    stock_qty: Optional[int] = None
-    low_stock_threshold: Optional[int] = None
+    stock_qty: Optional[float] = None
+    low_stock_threshold: Optional[float] = None
     gst_rate: Optional[float] = None
+    package_unit: Optional[str] = None
+    package_qty: Optional[float] = None
+    package_selling_price: Optional[float] = None
     batch_number: Optional[str] = None
     expiry_date: Optional[str] = None
     part_number: Optional[str] = None
     description: Optional[str] = None
 
 class RestockRequest(BaseModel):
-    quantity: int = Field(..., gt=0)
+    quantity: float = Field(..., gt=0)
     cost_price: Optional[float] = None
+    notes: Optional[str] = "Manual restock"
     notes: Optional[str] = "Manual restock"
 
 @router.get("")
@@ -116,9 +124,12 @@ def add_product(data: ProductCreate, user: dict = Depends(require_staff_or_admin
         "unit": data.unit.strip() or "Pcs",
         "purchase_price": float(data.purchase_price),
         "selling_price": float(data.selling_price),
-        "stock_qty": int(data.stock_qty),
-        "low_stock_threshold": int(data.low_stock_threshold),
+        "stock_qty": float(data.stock_qty),
+        "low_stock_threshold": float(data.low_stock_threshold),
         "gst_rate": float(data.gst_rate),
+        "package_unit": data.package_unit.strip() if data.package_unit else "",
+        "package_qty": float(data.package_qty or 1.0),
+        "package_selling_price": float(data.package_selling_price or 0.0),
         "batch_number": data.batch_number.strip() if data.batch_number else "",
         "expiry_date": data.expiry_date.strip() if data.expiry_date else "",
         "part_number": data.part_number.strip().upper() if data.part_number else "",
@@ -189,9 +200,15 @@ def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(re
     if data.selling_price is not None:
         update_fields["selling_price"] = float(data.selling_price)
     if data.low_stock_threshold is not None:
-        update_fields["low_stock_threshold"] = int(data.low_stock_threshold)
+        update_fields["low_stock_threshold"] = float(data.low_stock_threshold)
     if data.gst_rate is not None:
         update_fields["gst_rate"] = float(data.gst_rate)
+    if data.package_unit is not None:
+        update_fields["package_unit"] = data.package_unit.strip()
+    if data.package_qty is not None:
+        update_fields["package_qty"] = float(data.package_qty)
+    if data.package_selling_price is not None:
+        update_fields["package_selling_price"] = float(data.package_selling_price)
     if data.batch_number is not None:
         update_fields["batch_number"] = data.batch_number.strip()
     if data.expiry_date is not None:
@@ -203,8 +220,8 @@ def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(re
 
     # Handle manual stock adjustment
     if data.stock_qty is not None and data.stock_qty != existing.get("stock_qty"):
-        new_stock = int(data.stock_qty)
-        delta = new_stock - existing.get("stock_qty", 0)
+        new_stock = float(data.stock_qty)
+        delta = round(new_stock - float(existing.get("stock_qty", 0)), 3)
         update_fields["stock_qty"] = new_stock
         
         stock_movements_col.insert_one({
@@ -233,7 +250,7 @@ def restock_product(product_id: str, data: RestockRequest, user: dict = Depends(
     if not p:
         raise HTTPException(status_code=404, detail="Product not found.")
 
-    new_stock = p.get("stock_qty", 0) + data.quantity
+    new_stock = round(float(p.get("stock_qty", 0)) + float(data.quantity), 3)
     update_data = {
         "stock_qty": new_stock,
         "updated_at": datetime.now(timezone.utc)

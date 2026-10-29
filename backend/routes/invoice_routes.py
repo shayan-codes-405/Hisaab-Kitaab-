@@ -26,6 +26,9 @@ class InvoiceItemSchema(BaseModel):
     gst_rate: float = Field(..., ge=0)
     discount_type: str = "percentage" # "percentage" or "fixed"
     discount_value: float = Field(0.0, ge=0)
+    # Multi-unit & Packaging fields (e.g. 1 Box = 10 Pcs)
+    conversion_factor: Optional[float] = 1.0
+    base_unit: Optional[str] = "Pcs"
     # Industry details snapshot
     batch_number: Optional[str] = ""
     expiry_date: Optional[str] = ""
@@ -70,6 +73,8 @@ class CalculateItemSchema(BaseModel):
     gst_rate: Optional[Any] = 18.0
     discount_type: Optional[str] = "percentage"
     discount_value: Optional[Any] = 0.0
+    conversion_factor: Optional[Any] = 1.0
+    base_unit: Optional[str] = "Pcs"
     batch_number: Optional[str] = ""
     expiry_date: Optional[str] = ""
     part_number: Optional[str] = ""
@@ -133,6 +138,8 @@ def calculate_invoice_totals(items: List[InvoiceItemSchema], seller_state: str, 
             "line_discount": line_disc,
             "taxable_amount": taxable,
             "gst_rate": float(item.gst_rate),
+            "conversion_factor": float(getattr(item, 'conversion_factor', 1.0) or 1.0),
+            "base_unit": getattr(item, 'base_unit', item.unit or 'Pcs') or 'Pcs',
             "batch_number": item.batch_number or "",
             "expiry_date": item.expiry_date or "",
             "part_number": item.part_number or ""
@@ -264,6 +271,8 @@ def preview_calculation(data: CalculateInvoiceRequest, user: dict = Depends(requ
                 gst_rate=max(0.0, gst),
                 discount_type=item.discount_type or "percentage",
                 discount_value=max(0.0, disc_val),
+                conversion_factor=float(item.conversion_factor or 1.0),
+                base_unit=item.base_unit or item.unit or "Pcs",
                 batch_number=item.batch_number or "",
                 expiry_date=item.expiry_date or "",
                 part_number=item.part_number or ""
@@ -345,17 +354,21 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
                 prod = None
                 
             if prod:
-                available = prod.get("stock_qty", 0)
-                if available < item.quantity:
+                available = float(prod.get("stock_qty", 0.0))
+                factor = float(getattr(item, 'conversion_factor', 1.0) or 1.0)
+                base_deduct_qty = round(float(item.quantity) * factor, 3)
+                if available < base_deduct_qty:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Insufficient stock for '{prod.get('name')}'. Available: {available}, Requested: {item.quantity}"
+                        detail=f"Insufficient stock for '{prod.get('name')}'. Available: {available} {prod.get('unit', 'Pcs')}, Requested: {item.quantity} {item.unit} ({base_deduct_qty} {prod.get('unit', 'Pcs')})"
                     )
                 stock_deductions.append({
                     "product_id": prod["_id"],
                     "product_name": prod["name"],
                     "sku": prod.get("sku", ""),
-                    "qty": item.quantity,
+                    "qty": base_deduct_qty,
+                    "sold_qty": float(item.quantity),
+                    "sold_unit": item.unit or prod.get("unit", "Pcs"),
                     "unit": prod.get("unit", "Pcs")
                 })
 
@@ -436,19 +449,24 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
     for deduction in stock_deductions:
         updated_prod = products_col.find_one_and_update(
             {"_id": deduction["product_id"]},
-            {"$inc": {"stock_qty": -int(deduction["qty"])}},
+            {"$inc": {"stock_qty": -float(deduction["qty"])}},
             return_document=True
         )
-        new_balance = updated_prod.get("stock_qty", 0) if updated_prod else 0
+        new_balance = updated_prod.get("stock_qty", 0.0) if updated_prod else 0.0
         
+        sold_info = f"{deduction.get('sold_qty', deduction['qty'])} {deduction.get('sold_unit', deduction['unit'])}"
+        ref_text = f"Invoice {inv_number}: Sold {sold_info}"
+        if deduction.get("sold_unit") != deduction.get("unit"):
+            ref_text += f" ({deduction['qty']} {deduction['unit']} deducted)"
+
         stock_movements_col.insert_one({
             "product_id": deduction["product_id"],
             "product_name": deduction["product_name"],
             "sku": deduction["sku"],
             "movement_type": "INVOICE_SALE",
-            "quantity_delta": -int(deduction["qty"]),
+            "quantity_delta": -float(deduction["qty"]),
             "stock_after": new_balance,
-            "reference": f"Invoice {inv_number}",
+            "reference": ref_text,
             "created_by": user.get("username", "staff"),
             "created_at": datetime.now(timezone.utc)
         })
@@ -519,13 +537,17 @@ def update_invoice(
     for it in old_items:
         pid = str(it.get("product_id") or "")
         if pid:
-            old_qty_by_pid[pid] = old_qty_by_pid.get(pid, 0.0) + float(it.get("quantity", 0))
+            factor = float(it.get("conversion_factor") or 1.0)
+            base_q = float(it.get("quantity", 0)) * factor
+            old_qty_by_pid[pid] = old_qty_by_pid.get(pid, 0.0) + base_q
 
     new_qty_by_pid = {}
     for it in data.items:
         if it.product_id:
             pid = str(it.product_id)
-            new_qty_by_pid[pid] = new_qty_by_pid.get(pid, 0.0) + float(it.quantity)
+            factor = float(getattr(it, "conversion_factor", 1.0) or 1.0)
+            base_q = float(it.quantity) * factor
+            new_qty_by_pid[pid] = new_qty_by_pid.get(pid, 0.0) + base_q
 
     # Validate stock availability for any increased quantities
     all_pids = set(old_qty_by_pid.keys()).union(set(new_qty_by_pid.keys()))
@@ -534,12 +556,12 @@ def update_invoice(
     for pid in all_pids:
         old_q = old_qty_by_pid.get(pid, 0.0)
         new_q = new_qty_by_pid.get(pid, 0.0)
-        delta = new_q - old_q # positive means need more stock, negative means return to stock
+        delta = round(new_q - old_q, 3) # positive means need more stock, negative means return to stock
 
         if delta != 0:
             prod = products_col.find_one({"_id": ObjectId(pid)})
             if prod:
-                if delta > 0 and prod.get("stock_qty", 0) < delta:
+                if delta > 0 and float(prod.get("stock_qty", 0)) < delta:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Insufficient additional stock for '{prod.get('name')}'. Available: {prod.get('stock_qty')}, Required: {delta}"
@@ -573,17 +595,17 @@ def update_invoice(
     for adj in stock_adjustments:
         updated_prod = products_col.find_one_and_update(
             {"_id": adj["product_id"]},
-            {"$inc": {"stock_qty": -int(adj["delta"])}},
+            {"$inc": {"stock_qty": -float(adj["delta"])}},
             return_document=True
         )
-        new_balance = updated_prod.get("stock_qty", 0) if updated_prod else 0
+        new_balance = updated_prod.get("stock_qty", 0.0) if updated_prod else 0.0
 
         stock_movements_col.insert_one({
             "product_id": adj["product_id"],
             "product_name": adj["product_name"],
             "sku": adj["sku"],
             "movement_type": "INVOICE_EDIT_ADJUSTMENT",
-            "quantity_delta": -int(adj["delta"]),
+            "quantity_delta": -float(adj["delta"]),
             "stock_after": new_balance,
             "reference": f"Edit Invoice {inv.get('invoice_number')}",
             "created_by": user.get("username", "staff"),
@@ -698,21 +720,23 @@ def cancel_invoice(invoice_id: str, user: dict = Depends(require_staff_or_admin)
     # Restock products that were deducted
     for item in inv.get("items", []):
         p_id = item.get("product_id")
-        qty = item.get("quantity", 0)
-        if p_id and qty > 0:
+        qty = float(item.get("quantity", 0))
+        factor = float(item.get("conversion_factor") or 1.0)
+        base_qty = round(qty * factor, 3)
+        if p_id and base_qty > 0:
             try:
                 products_col.update_one(
                     {"_id": ObjectId(p_id)},
-                    {"$inc": {"stock_qty": int(qty)}}
+                    {"$inc": {"stock_qty": base_qty}}
                 )
                 stock_movements_col.insert_one({
                     "product_id": ObjectId(p_id),
                     "product_name": item.get("name"),
                     "sku": item.get("sku", ""),
                     "movement_type": "INVOICE_CANCEL_RESTOCK",
-                    "quantity_delta": int(qty),
+                    "quantity_delta": base_qty,
                     "stock_after": 0, # audit mark
-                    "reference": f"Cancellation of {inv.get('invoice_number')}",
+                    "reference": f"Cancellation of {inv.get('invoice_number')}: Restocked {qty} {item.get('unit', 'units')}",
                     "created_by": user.get("username", "admin"),
                     "created_at": datetime.now(timezone.utc)
                 })

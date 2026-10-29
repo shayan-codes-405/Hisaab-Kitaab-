@@ -73,6 +73,8 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
   const [sendSMSOnCreate, setSendSMSOnCreate] = useState(true);
   const [smsNotificationMsg, setSmsNotificationMsg] = useState('');
 
+  const [printInvoice, setPrintInvoice] = useState(null);
+
   // Line items
   const [items, setItems] = useState([
     {
@@ -80,8 +82,14 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       name: '',
       sku: '',
       unit: 'Pcs',
+      base_unit: 'Pcs',
+      conversion_factor: 1.0,
       quantity: 1,
       unit_price: 0,
+      base_selling_price: 0,
+      package_unit: '',
+      package_qty: 1,
+      package_selling_price: 0,
       gst_rate: 18,
       discount_type: 'percentage',
       discount_value: 0,
@@ -177,6 +185,8 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           name: it.name.trim(),
           sku: it.sku || '',
           unit: it.unit || 'Pcs',
+          conversion_factor: parseFloat(it.conversion_factor) || 1.0,
+          base_unit: it.base_unit || it.unit || 'Pcs',
           quantity: it.quantity === '' ? 1 : parseFloat(it.quantity) || 0,
           unit_price: it.unit_price === '' ? 0 : parseFloat(it.unit_price) || 0,
           gst_rate: it.gst_rate === '' ? 0 : parseFloat(it.gst_rate) || 0,
@@ -243,7 +253,13 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         name: found.name,
         sku: found.sku,
         unit: found.unit || 'Pcs',
+        base_unit: found.unit || 'Pcs',
+        conversion_factor: 1.0,
         unit_price: found.selling_price || 0,
+        base_selling_price: found.selling_price || 0,
+        package_unit: found.package_unit || '',
+        package_qty: found.package_qty || 1,
+        package_selling_price: found.package_selling_price || 0,
         gst_rate: found.gst_rate ?? 18,
         batch_number: found.batch_number || '',
         expiry_date: found.expiry_date || '',
@@ -255,7 +271,45 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         product_id: '',
         name: '',
         sku: '',
-        unit_price: 0
+        unit: 'Pcs',
+        base_unit: 'Pcs',
+        conversion_factor: 1.0,
+        unit_price: 0,
+        base_selling_price: 0,
+        package_unit: '',
+        package_qty: 1,
+        package_selling_price: 0
+      };
+    }
+    setItems(copy);
+  };
+
+  const handleUnitChange = (idx, newUnit) => {
+    const copy = [...items];
+    const it = copy[idx];
+    if (it.package_unit && newUnit === it.package_unit) {
+      // Selling in packaging unit (e.g. Box of 10 Pcs)
+      const pkgPrice = it.package_selling_price > 0 
+        ? it.package_selling_price 
+        : (Number(it.base_selling_price || it.unit_price) * (it.package_qty || 1.0));
+      copy[idx] = {
+        ...it,
+        unit: newUnit,
+        conversion_factor: it.package_qty || 1.0,
+        unit_price: pkgPrice
+      };
+    } else if (newUnit === it.base_unit) {
+      // Selling in base unit (e.g. Loose Pcs)
+      copy[idx] = {
+        ...it,
+        unit: newUnit,
+        conversion_factor: 1.0,
+        unit_price: it.base_selling_price || it.unit_price || 0
+      };
+    } else {
+      copy[idx] = {
+        ...it,
+        unit: newUnit
       };
     }
     setItems(copy);
@@ -269,8 +323,14 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         name: '',
         sku: '',
         unit: 'Pcs',
+        base_unit: 'Pcs',
+        conversion_factor: 1.0,
         quantity: 1,
         unit_price: 0,
+        base_selling_price: 0,
+        package_unit: '',
+        package_qty: 1,
+        package_selling_price: 0,
         gst_rate: 18,
         discount_type: 'percentage',
         discount_value: 0,
@@ -310,8 +370,14 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         name: '',
         sku: '',
         unit: 'Pcs',
+        base_unit: 'Pcs',
+        conversion_factor: 1.0,
         quantity: 1,
         unit_price: 0,
+        base_selling_price: 0,
+        package_unit: '',
+        package_qty: 1,
+        package_selling_price: 0,
         gst_rate: 18,
         discount_type: 'percentage',
         discount_value: 0,
@@ -347,8 +413,14 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         name: it.name || '',
         sku: it.sku || '',
         unit: it.unit || 'Pcs',
+        base_unit: it.base_unit || it.unit || 'Pcs',
+        conversion_factor: it.conversion_factor || 1.0,
         quantity: it.quantity || 1,
         unit_price: it.unit_price || 0,
+        base_selling_price: it.unit_price || 0,
+        package_unit: '',
+        package_qty: 1,
+        package_selling_price: 0,
         gst_rate: it.gst_rate ?? 18,
         discount_type: it.discount_type || 'percentage',
         discount_value: it.discount_value || 0,
@@ -359,6 +431,46 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     );
     setSelectedInvoice(null);
     setShowCreatorModal(true);
+  };
+
+  const handlePrint = (inv) => {
+    setPrintInvoice(inv);
+    setTimeout(() => {
+      window.print();
+    }, 180);
+  };
+
+  const handlePrintDraft = () => {
+    if (!customer.name.trim()) {
+      showToast('Please enter customer name to print invoice draft', 'warning');
+      return;
+    }
+    const draftInv = {
+      invoice_number: editingInvoice ? editingInvoice.invoice_number : 'DRAFT / PREVIEW',
+      invoice_date: invoiceDate,
+      customer: {
+        ...customer,
+        name: customer.name || 'Walk-in Customer'
+      },
+      items: (calculation?.processed_items && calculation.processed_items.length > 0)
+        ? calculation.processed_items
+        : items.filter((it) => it.name),
+      subtotal_gross: calculation?.subtotal_gross || 0,
+      total_line_discounts: calculation?.total_line_discounts || 0,
+      invoice_discount_amount: calculation?.invoice_discount_amount || 0,
+      total_net_taxable: calculation?.total_net_taxable || 0,
+      total_cgst: calculation?.total_cgst || 0,
+      total_sgst: calculation?.total_sgst || 0,
+      total_igst: calculation?.total_igst || 0,
+      total_tax: calculation?.total_tax || 0,
+      final_payable_amount: calculation?.final_payable_amount || 0,
+      payment_status: paymentStatus,
+      payment_mode: paymentMode,
+      is_interstate: calculation?.is_interstate || false,
+      notes: notes,
+      seller_snapshot: business
+    };
+    handlePrint(draftInv);
   };
 
   const handleDeleteInvoice = async (inv) => {
@@ -394,6 +506,8 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         name: it.name.trim(),
         sku: it.sku || '',
         unit: it.unit || 'Pcs',
+        conversion_factor: parseFloat(it.conversion_factor) || 1.0,
+        base_unit: it.base_unit || it.unit || 'Pcs',
         quantity: it.quantity === '' ? 1 : parseFloat(it.quantity) || 0,
         unit_price: it.unit_price === '' ? 0 : parseFloat(it.unit_price) || 0,
         gst_rate: it.gst_rate === '' ? 0 : parseFloat(it.gst_rate) || 0,
@@ -765,6 +879,14 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       📄 PDF
                     </a>
                     <button
+                      onClick={() => handlePrint(inv)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ marginRight: '6px' }}
+                      title="Print Tax Invoice / Receipt"
+                    >
+                      🖨️ Print
+                    </button>
+                    <button
                       onClick={() => openSMSModalFor(inv)}
                       className="btn btn-secondary btn-sm"
                       style={{ marginRight: '6px' }}
@@ -931,7 +1053,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                         border: '1px solid var(--color-stone)'
                       }}
                     >
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '8px', alignItems: 'flex-start' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr 1fr 1fr auto', gap: '8px', alignItems: 'flex-start' }}>
                         <div>
                           <select
                             className="form-select"
@@ -942,7 +1064,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                             <option value="">-- Choose from Inventory or Type --</option>
                             {products.map((p) => (
                               <option key={p.id} value={p.id}>
-                                {p.name} (Stock: {p.stock_qty} | ₹{p.selling_price})
+                                {p.name} (Stock: {p.stock_qty} {p.unit}{p.package_unit ? ` | ${p.package_unit} of ${p.package_qty}` : ''} | ₹{p.selling_price})
                               </option>
                             ))}
                           </select>
@@ -967,10 +1089,46 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                             value={it.quantity}
                             onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
                           />
+                          {it.conversion_factor && it.conversion_factor > 1 ? (
+                            <div style={{ fontSize: '9.5px', color: 'var(--color-copper)', fontWeight: 600, marginTop: '2px' }}>
+                              = {(Number(it.quantity || 0) * Number(it.conversion_factor || 1)).toFixed(2).replace(/\.00$/, '')} {it.base_unit || 'Pcs'} stock
+                            </div>
+                          ) : null}
                         </div>
 
                         <div>
-                          <label className="form-label" style={{ fontSize: '10px' }}>Unit Price (₹)</label>
+                          <label className="form-label" style={{ fontSize: '10px' }}>Selling Unit</label>
+                          {it.package_unit ? (
+                            <select
+                              className="form-select"
+                              value={it.unit}
+                              onChange={(e) => handleUnitChange(idx, e.target.value)}
+                              style={{ fontSize: '11px' }}
+                            >
+                              <option value={it.base_unit || 'Pcs'}>{it.base_unit || 'Pcs'} (Single)</option>
+                              <option value={it.package_unit}>{it.package_unit} ({it.package_qty} {it.base_unit || 'Pcs'})</option>
+                            </select>
+                          ) : (
+                            <select
+                              className="form-select"
+                              value={it.unit}
+                              onChange={(e) => handleUnitChange(idx, e.target.value)}
+                              style={{ fontSize: '11px' }}
+                            >
+                              <option value="Pcs">Pcs</option>
+                              <option value="Box">Box</option>
+                              <option value="Strip">Strip</option>
+                              <option value="Kg">Kg</option>
+                              <option value="Grams">Grams</option>
+                              <option value="Pack">Pack</option>
+                              <option value="Meter">Meter</option>
+                              <option value="Litre">Litre</option>
+                            </select>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="form-label" style={{ fontSize: '10px' }}>Rate / {it.unit || 'Unit'} (₹)</label>
                           <input
                             type="number"
                             min="0"
@@ -1141,25 +1299,47 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
               >
                 <div>
                   {/* Header of Preview */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid var(--color-forest)', paddingBottom: '14px', marginBottom: '14px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--color-forest)', margin: 0 }}>
-                        {business?.business_name || 'My Business'}
-                      </h3>
-                      <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px' }}>
-                        {business?.address || 'Business Address'}
-                        <br />
-                        <b>GSTIN:</b> {business?.gstin || '27AAAAA0000A1Z5'} | State: {business?.state || 'Maharashtra'}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--color-forest)', paddingBottom: '14px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <img
+                        src="/logo.png"
+                        alt="HisabKitab"
+                        style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: '1px solid var(--color-stone)'
+                        }}
+                      />
+                      <div>
+                        <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--color-forest)', margin: 0 }}>
+                          {business?.business_name || 'My Business'}
+                        </h3>
+                        <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                          {business?.address || 'Business Address'}
+                          <br />
+                          <b>GSTIN:</b> {business?.gstin || '27AAAAA0000A1Z5'} | State: {business?.state || 'Maharashtra'}
+                        </div>
                       </div>
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--color-forest)' }}>TAX INVOICE</div>
                       <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>Date: {invoiceDate}</div>
-                      <div style={{ marginTop: '4px' }}>
+                      <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
                         <span className={`status-pill ${paymentStatus === 'Paid' ? 'status-paid' : paymentStatus === 'Partially Paid' ? 'status-partial' : 'status-unpaid'}`}>
                           {paymentStatus.toUpperCase()}
                         </span>
+                        <button
+                          type="button"
+                          onClick={handlePrintDraft}
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '2px 8px', fontSize: '11px' }}
+                          title="Print Live Invoice Draft / Receipt"
+                        >
+                          🖨️ Print
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1313,6 +1493,13 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 >
                   Download PDF
                 </a>
+                <button
+                  onClick={() => handlePrint(selectedInvoice)}
+                  className="btn btn-secondary btn-sm"
+                  title="Print Tax Invoice / Bill"
+                >
+                  🖨️ Print
+                </button>
                 <button
                   onClick={() => openSMSModalFor(selectedInvoice)}
                   className="btn btn-secondary btn-sm"
@@ -1572,6 +1759,233 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          PRINTABLE TAX INVOICE (Rendered only on window.print())
+          ==================================================================== */}
+      {printInvoice && (
+        <div id="print-tax-invoice" className="print-sheet-area">
+          {/* Header with Business Details and Logo */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #243C32', paddingBottom: '12px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <img
+                src="/logo.png"
+                alt="Logo"
+                style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover' }}
+              />
+              <div>
+                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#243C32', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+                  {printInvoice.seller_snapshot?.business_name || business?.business_name || 'Akhtar Enterprises'}
+                </h2>
+                <div style={{ fontSize: '11.5px', color: '#444444', marginTop: '3px' }}>
+                  {printInvoice.seller_snapshot?.address || business?.address || 'Main Market Road'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#444444' }}>
+                  <b>GSTIN:</b> {printInvoice.seller_snapshot?.gstin || business?.gstin || '27AAAAA0000A1Z5'}
+                  {(printInvoice.seller_snapshot?.phone || business?.phone) && (
+                    <span> • <b>Tel:</b> {printInvoice.seller_snapshot?.phone || business?.phone}</span>
+                  )}
+                  {(printInvoice.seller_snapshot?.email || business?.email) && (
+                    <span> • <b>Email:</b> {printInvoice.seller_snapshot?.email || business?.email}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '11px', color: '#444444' }}>
+                  <b>State:</b> {printInvoice.seller_snapshot?.state || business?.state || 'Maharashtra'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right', minWidth: '180px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 900, color: '#243C32', letterSpacing: '0.05em' }}>
+                TAX INVOICE
+              </div>
+              <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                <b>Invoice No:</b> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{printInvoice.invoice_number}</span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#555555' }}>
+                <b>Date:</b> {printInvoice.invoice_date}
+              </div>
+              {printInvoice.due_date && (
+                <div style={{ fontSize: '11.5px', color: '#555555' }}>
+                  <b>Due Date:</b> {printInvoice.due_date}
+                </div>
+              )}
+              <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                <b>Payment:</b> <span style={{ fontWeight: 700, textTransform: 'uppercase' }}>{printInvoice.payment_status}</span> ({printInvoice.payment_mode || 'Cash'})
+              </div>
+            </div>
+          </div>
+
+          {/* Billed To / Place of Supply */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', border: '1px solid #D8D0C2', borderRadius: '4px', padding: '10px 14px', marginBottom: '16px', backgroundColor: '#FAFAFA' }}>
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#243C32', textTransform: 'uppercase' }}>BILLED TO:</div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#111111' }}>{printInvoice.customer?.name}</div>
+              {printInvoice.customer?.billing_address && (
+                <div style={{ fontSize: '11.5px', color: '#444444' }}>{printInvoice.customer.billing_address}</div>
+              )}
+              <div style={{ fontSize: '11.5px', color: '#444444' }}>
+                <b>Phone:</b> {printInvoice.customer?.phone || 'N/A'}
+                {printInvoice.customer?.email && <span> • <b>Email:</b> {printInvoice.customer.email}</span>}
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#444444' }}>
+                <b>GSTIN:</b> {printInvoice.customer?.gstin ? printInvoice.customer.gstin : 'Unregistered Consumer'}
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#243C32', textTransform: 'uppercase' }}>PLACE OF SUPPLY:</div>
+              <div style={{ fontSize: '13px', fontWeight: 700 }}>{printInvoice.customer?.state || business?.state || 'Maharashtra'}</div>
+              <div style={{ fontSize: '11.5px', color: '#555555', marginTop: '2px' }}>
+                Supply Nature: <b>{printInvoice.is_interstate ? 'Inter-State (IGST 100%)' : 'Intra-State (CGST 50% + SGST 50%)'}</b>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#555555' }}>
+                Reverse Charge: <b>No</b>
+              </div>
+            </div>
+          </div>
+
+          {/* Table of items */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px', fontSize: '11px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#243C32', color: '#FFFFFF', textAlign: 'left' }}>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32', width: '30px' }}>#</th>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32' }}>Item Description</th>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32', textAlign: 'right', width: '70px' }}>Qty</th>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32', textAlign: 'right', width: '80px' }}>Unit Rate</th>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32', textAlign: 'right', width: '70px' }}>Disc.</th>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32', textAlign: 'right', width: '80px' }}>Taxable</th>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32', textAlign: 'center', width: '60px' }}>GST %</th>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32', textAlign: 'right', width: '85px' }}>Tax (₹)</th>
+                <th style={{ padding: '7px 8px', border: '1px solid #243C32', textAlign: 'right', width: '90px' }}>Total (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {printInvoice.items?.map((it, idx) => {
+                const itTax = Number(it.tax_amount ?? ((it.cgst_amount || 0) + (it.sgst_amount || 0) + (it.igst_amount || 0)));
+                return (
+                  <tr key={idx} style={{ borderBottom: '1px solid #D8D0C2' }}>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8' }}>{idx + 1}</td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8' }}>
+                      <div style={{ fontWeight: 700, color: '#111111' }}>{it.name}</div>
+                      {it.sku && <div style={{ fontSize: '9.5px', color: '#666666' }}>SKU: {it.sku}</div>}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8', textAlign: 'right' }}>
+                      {it.quantity} {it.unit || 'Pcs'}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8', textAlign: 'right' }}>
+                      ₹{Number(it.unit_price || 0).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8', textAlign: 'right', color: '#991B1B' }}>
+                      {Number(it.discount_amount || 0) > 0 ? `₹${Number(it.discount_amount).toFixed(2)}` : '-'}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8', textAlign: 'right' }}>
+                      ₹{Number(it.taxable_amount || 0).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8', textAlign: 'center' }}>
+                      {it.gst_rate ?? 18}%
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8', textAlign: 'right' }}>
+                      ₹{itTax.toFixed(2)}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #E5E0D8', textAlign: 'right', fontWeight: 800 }}>
+                      ₹{Number(it.line_total || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {/* Bottom summary and bank details */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'flex-start' }}>
+            {/* Left: Bank details & Notes */}
+            <div>
+              <div style={{ border: '1px solid #D8D0C2', borderRadius: '4px', padding: '10px 12px', marginBottom: '10px', fontSize: '11px', backgroundColor: '#FAFAFA' }}>
+                <div style={{ fontWeight: 800, color: '#243C32', textTransform: 'uppercase', marginBottom: '4px' }}>Bank & Payment Details:</div>
+                <div><b>Bank:</b> {printInvoice.seller_snapshot?.bank_name || business?.bank_name || 'State Bank of India'}</div>
+                <div><b>A/C No:</b> {printInvoice.seller_snapshot?.bank_account_no || business?.bank_account_no || 'Not Configured'}</div>
+                <div><b>IFSC Code:</b> {printInvoice.seller_snapshot?.bank_ifsc || business?.bank_ifsc || 'SBIN0001234'}</div>
+                <div><b>UPI ID:</b> {printInvoice.seller_snapshot?.upi_id || business?.upi_id || 'akhtar@upi'}</div>
+              </div>
+
+              {printInvoice.notes && (
+                <div style={{ fontSize: '10.5px', color: '#555555', fontStyle: 'italic', marginBottom: '8px' }}>
+                  <b>Notes:</b> {printInvoice.notes}
+                </div>
+              )}
+
+              <div style={{ fontSize: '10px', color: '#666666', borderTop: '1px dashed #D8D0C2', paddingTop: '6px' }}>
+                <b>Terms & Conditions:</b> {printInvoice.seller_snapshot?.terms_conditions || business?.terms_conditions || '1. Goods once sold are not returnable. 2. Interest @ 18% p.a. charged after due date.'}
+              </div>
+            </div>
+
+            {/* Right: Calculations breakdown */}
+            <div style={{ border: '1px solid #D8D0C2', borderRadius: '4px', overflow: 'hidden', fontSize: '11.5px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #E5E0D8' }}>
+                    <td style={{ padding: '5px 10px', color: '#555555' }}>Subtotal (Gross):</td>
+                    <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 600 }}>₹{Number(printInvoice.subtotal_gross || 0).toFixed(2)}</td>
+                  </tr>
+                  {(Number(printInvoice.total_line_discounts || 0) > 0 || Number(printInvoice.invoice_discount_amount || 0) > 0) && (
+                    <tr style={{ borderBottom: '1px solid #E5E0D8', color: '#991B1B' }}>
+                      <td style={{ padding: '5px 10px' }}>Total Discounts:</td>
+                      <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 600 }}>
+                        - ₹{(Number(printInvoice.total_line_discounts || 0) + Number(printInvoice.invoice_discount_amount || 0)).toFixed(2)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr style={{ borderBottom: '1px solid #E5E0D8', backgroundColor: '#F8F6F2' }}>
+                    <td style={{ padding: '5px 10px', fontWeight: 700 }}>Taxable Value:</td>
+                    <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 700 }}>₹{Number(printInvoice.total_net_taxable || 0).toFixed(2)}</td>
+                  </tr>
+                  {printInvoice.is_interstate ? (
+                    <tr style={{ borderBottom: '1px solid #E5E0D8' }}>
+                      <td style={{ padding: '5px 10px', color: '#555555' }}>Integrated GST (IGST):</td>
+                      <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 600 }}>₹{Number(printInvoice.total_igst || 0).toFixed(2)}</td>
+                    </tr>
+                  ) : (
+                    <>
+                      <tr style={{ borderBottom: '1px solid #E5E0D8' }}>
+                        <td style={{ padding: '5px 10px', color: '#555555' }}>Central GST (CGST):</td>
+                        <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 600 }}>₹{Number(printInvoice.total_cgst || 0).toFixed(2)}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #E5E0D8' }}>
+                        <td style={{ padding: '5px 10px', color: '#555555' }}>State GST (SGST):</td>
+                        <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 600 }}>₹{Number(printInvoice.total_sgst || 0).toFixed(2)}</td>
+                      </tr>
+                    </>
+                  )}
+                  <tr style={{ backgroundColor: '#243C32', color: '#FFFFFF', fontSize: '14px' }}>
+                    <td style={{ padding: '8px 10px', fontWeight: 800 }}>Final Payable Amount:</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 900 }}>₹{Number(printInvoice.final_payable_amount || 0).toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Signatures & Footer */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '28px', paddingTop: '10px', borderTop: '1px solid #D8D0C2' }}>
+            <div style={{ fontSize: '10px', color: '#666666' }}>
+              This is a computer-generated tax invoice issued in accordance with GST Rules.
+              <br />
+              Software: <b>HisabKitab</b> — Billing, Inventory & Business Management
+            </div>
+
+            <div style={{ textAlign: 'center', minWidth: '180px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#243C32' }}>
+                For {printInvoice.seller_snapshot?.business_name || business?.business_name || 'Akhtar Enterprises'}
+              </div>
+              <div style={{ height: '40px' }}></div>
+              <div style={{ borderTop: '1px solid #333333', fontSize: '11px', fontWeight: 600, paddingTop: '3px' }}>
+                Authorized Signatory
+              </div>
+            </div>
           </div>
         </div>
       )}

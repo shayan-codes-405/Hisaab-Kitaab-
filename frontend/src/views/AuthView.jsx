@@ -77,23 +77,18 @@ export const AuthView = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div
+            <img
+              src="/logo.png"
+              alt="HisabKitab Logo"
               style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '8px',
-                backgroundColor: 'var(--color-copper)',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: '18px',
-                fontFamily: 'var(--font-heading)'
+                width: '46px',
+                height: '46px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.3)',
+                backgroundColor: '#ffffff'
               }}
-            >
-              HK
-            </div>
+            />
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
                 HisabKitab

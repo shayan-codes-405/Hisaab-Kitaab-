@@ -71,24 +71,19 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed }) =>
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
-          <div
+          <img
+            src="/logo.png"
+            alt="HisabKitab Logo"
             style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '6px',
-              backgroundColor: 'var(--color-copper)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '18px',
-              fontFamily: 'var(--font-heading)',
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              backgroundColor: '#ffffff',
               flexShrink: 0
             }}
-          >
-            HK
-          </div>
+          />
           {!collapsed && (
             <div>
               <div style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '-0.02em', color: '#ffffff', fontFamily: 'var(--font-heading)' }}>
