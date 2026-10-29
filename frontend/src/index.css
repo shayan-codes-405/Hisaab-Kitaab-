@@ -198,9 +198,29 @@ h1, h2, h3, h4, h5, h6 {
   background-color: #fecaca;
 }
 
+.btn-danger-subtle {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+.btn-danger-subtle:hover:not(:disabled) {
+  background-color: #fee2e2;
+  border-color: #f87171;
+  color: #991b1b;
+}
+
 .btn-sm {
   padding: 5px 10px;
   font-size: 12px;
+}
+
+.btn-xs {
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  gap: 3px;
+  border-radius: var(--radius-sm);
+  line-height: 1.25;
 }
 
 /* ==========================================================================
@@ -275,6 +295,24 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .ledger-table tr:hover td {
+  background-color: #faf8f5;
+}
+
+/* Sticky Action Column for Ledger Tables (Always visible without horizontal zoom-out) */
+.table-sticky-actions {
+  position: sticky;
+  right: 0;
+  background-color: var(--color-paper);
+  z-index: 4;
+  box-shadow: -4px 0 8px rgba(36, 60, 50, 0.08);
+}
+
+thead th.table-sticky-actions {
+  background-color: var(--color-stone-light) !important;
+  z-index: 5;
+}
+
+.ledger-table tr:hover td.table-sticky-actions {
   background-color: #faf8f5;
 }
 
@@ -377,7 +415,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 16px;
   animation: modalBackdropFade 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -388,11 +426,19 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-modal);
   width: 100%;
   max-width: 640px;
-  max-height: 90vh;
+  max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: modalSheetSlideUp 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.modal-sheet form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @keyframes modalBackdropFade {
@@ -502,27 +548,48 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .modal-header {
-  padding: 16px 20px;
+  padding: 14px 20px;
   background-color: var(--color-stone-light);
   border-bottom: 1px solid var(--color-stone);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 18px 20px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-footer {
-  padding: 14px 20px;
+  padding: 12px 20px;
   background-color: #faf8f5;
   border-top: 1px solid var(--color-stone-light);
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.invoice-creator-body {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 960px) {
+  .invoice-creator-body {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ==========================================================================

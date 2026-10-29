@@ -335,7 +335,7 @@ export const InventoryView = () => {
               <th style={{ textAlign: 'right' }}>Selling Price</th>
               <th style={{ textAlign: 'center' }}>Stock Available</th>
               <th style={{ textAlign: 'center' }}>Status</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
+              <th className="table-sticky-actions" style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -403,39 +403,39 @@ export const InventoryView = () => {
                         {isOut ? 'Out of Stock' : isLow ? 'Low Stock' : 'In Stock'}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button
-                        onClick={() => {
-                          setRestockProduct(p);
-                          setRestockQty(10);
-                          setShowRestockModal(true);
-                        }}
-                        title="Quick Restock"
-                        className="btn btn-secondary btn-sm"
-                        style={{ marginRight: '6px' }}
-                      >
-                        + Restock
-                      </button>
-
-                      <button
-                        onClick={() => openEditModal(p)}
-                        title="Edit Product"
-                        className="btn btn-ghost btn-sm"
-                        style={{ marginRight: '4px' }}
-                      >
-                        Edit
-                      </button>
-
-                      {isAdmin && (
+                    <td className="table-sticky-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <button
-                          onClick={() => handleDeleteProduct(p.id, p.name)}
-                          title="Delete Product"
-                          className="btn btn-ghost btn-sm"
-                          style={{ color: '#DC2626' }}
+                          onClick={() => {
+                            setRestockProduct(p);
+                            setRestockQty(10);
+                            setShowRestockModal(true);
+                          }}
+                          title="Quick Restock"
+                          className="btn btn-secondary btn-xs"
                         >
-                          ✕
+                          + Restock
                         </button>
-                      )}
+
+                        <button
+                          onClick={() => openEditModal(p)}
+                          title="Edit Product"
+                          className="btn btn-ghost btn-xs"
+                        >
+                          Edit
+                        </button>
+
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteProduct(p.id, p.name)}
+                            title="Delete Product"
+                            className="btn btn-danger-subtle btn-xs"
+                            style={{ color: '#DC2626' }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -448,7 +448,7 @@ export const InventoryView = () => {
       {/* Add / Edit Product Modal */}
       {showProductModal && (
         <div className="modal-backdrop">
-          <div className="modal-sheet modal-sheet-lg">
+          <div className="modal-sheet modal-sheet-lg" style={{ maxHeight: '90vh' }}>
             <div className="modal-header">
               <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--color-forest)' }}>
                 {editingProduct ? `Edit Product: ${editingProduct.name}` : 'Add New Inventory Product'}
@@ -462,10 +462,10 @@ export const InventoryView = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct}>
-              <div className="modal-body">
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '14px' }}>
-                  <div className="form-group">
+            <form onSubmit={handleSaveProduct} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div className="modal-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Product Name *</label>
                     <input
                       type="text"
@@ -477,7 +477,7 @@ export const InventoryView = () => {
                     />
                   </div>
 
-                  <div className="form-group">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">SKU / Code *</label>
                     <input
                       type="text"
@@ -490,8 +490,8 @@ export const InventoryView = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '14px' }}>
-                  <div className="form-group">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Category *</label>
                     <input
                       type="text"
@@ -503,7 +503,7 @@ export const InventoryView = () => {
                     />
                   </div>
 
-                  <div className="form-group">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Applicable GST Rate (%) *</label>
                     <select
                       className="form-select"
@@ -520,21 +520,21 @@ export const InventoryView = () => {
                 </div>
 
                 {/* Packaging & Multi-Unit Selector Mode */}
-                <div style={{ backgroundColor: 'var(--color-stone-light)', border: '1px solid var(--color-stone)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-forest)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ backgroundColor: 'var(--color-stone-light)', border: '1px solid var(--color-stone)', borderRadius: '8px', padding: '12px 14px', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-forest)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span>📦</span> Packaging & Multi-Unit Mode
                   </div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginBottom: '10px' }}>
                     Choose how this item is stocked and sold in your shop:
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: '12px', marginBottom: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                     <div
                       onClick={() => setPackagingMode('single')}
                       style={{
                         border: `2px solid ${packagingMode === 'single' ? 'var(--color-forest)' : 'var(--color-stone)'}`,
                         backgroundColor: packagingMode === 'single' ? '#ffffff' : '#faf8f5',
-                        padding: '10px 14px',
+                        padding: '8px 12px',
                         borderRadius: '6px',
                         cursor: 'pointer',
                         display: 'flex',
@@ -544,8 +544,8 @@ export const InventoryView = () => {
                     >
                       <input type="radio" checked={packagingMode === 'single'} onChange={() => setPackagingMode('single')} style={{ marginTop: '3px' }} />
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: '12.5px', color: 'var(--color-charcoal)' }}>Single Unit Only</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>Sold only in loose pieces, kg, litres, or meters.</div>
+                        <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--color-charcoal)' }}>Single Unit Only</div>
+                        <div style={{ fontSize: '10.5px', color: 'var(--color-muted)' }}>Sold only in loose pieces, kg, litres, or meters.</div>
                       </div>
                     </div>
 
@@ -554,7 +554,7 @@ export const InventoryView = () => {
                       style={{
                         border: `2px solid ${packagingMode === 'multi' ? 'var(--color-forest)' : 'var(--color-stone)'}`,
                         backgroundColor: packagingMode === 'multi' ? '#ffffff' : '#faf8f5',
-                        padding: '10px 14px',
+                        padding: '8px 12px',
                         borderRadius: '6px',
                         cursor: 'pointer',
                         display: 'flex',
@@ -564,14 +564,14 @@ export const InventoryView = () => {
                     >
                       <input type="radio" checked={packagingMode === 'multi'} onChange={() => setPackagingMode('multi')} style={{ marginTop: '3px' }} />
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: '12.5px', color: 'var(--color-forest)' }}>📦 Box / Pack with Multiple Pieces</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>Sell in full boxes, half boxes, OR single loose pieces (e.g. 1 Box = 10 Pcs).</div>
+                        <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--color-forest)' }}>📦 Box / Pack with Multiple Pieces</div>
+                        <div style={{ fontSize: '10.5px', color: 'var(--color-muted)' }}>Sell in full boxes, half boxes, OR single loose pieces (e.g. 1 Box = 10 Pcs).</div>
                       </div>
                     </div>
                   </div>
 
                   {packagingMode === 'single' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Unit of Measure *</label>
                         <select className="form-select" value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })}>
@@ -598,11 +598,11 @@ export const InventoryView = () => {
                   ) : (
                     <div>
                       {/* Step 1: Definition */}
-                      <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-stone)', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-forest)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                      <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-stone)', borderRadius: '6px', padding: '10px 12px', marginBottom: '10px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-forest)', textTransform: 'uppercase', marginBottom: '6px' }}>
                           Step 1: Packaging Relation (e.g. 1 Box = 10 Pcs)
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Bulk Packaging Unit *</label>
                             <input
@@ -639,17 +639,17 @@ export const InventoryView = () => {
                             />
                           </div>
                         </div>
-                        <div style={{ marginTop: '8px', fontSize: '11.5px', color: 'var(--color-forest)', fontWeight: 700 }}>
+                        <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-forest)', fontWeight: 700 }}>
                           ✓ Formula: 1 {pkgUnit || 'Box'} = {pkgQty || 10} {looseUnit || 'Pcs'}
                         </div>
                       </div>
 
                       {/* Step 2: Stock Entry */}
-                      <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-stone)', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-forest)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                      <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-stone)', borderRadius: '6px', padding: '10px 12px', marginBottom: '10px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-forest)', textTransform: 'uppercase', marginBottom: '6px' }}>
                           Step 2: Enter Inventory Stock in Hand
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Total Stock in {pkgUnit || 'Box'}es</label>
                             <input
@@ -676,7 +676,7 @@ export const InventoryView = () => {
                             />
                           </div>
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-forest)', fontWeight: 600, marginTop: '6px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-forest)', fontWeight: 600, marginTop: '4px' }}>
                           📊 Total Stock: <b>{formData.stock_qty || 0} {looseUnit || 'Pcs'}</b>
                           {(parseFloat(pkgQty) || 10) > 1 && (
                             <span> ≈ {Math.floor((Number(formData.stock_qty) || 0) / (parseFloat(pkgQty) || 10))} {pkgUnit || 'Box'}es{Math.round((Number(formData.stock_qty) || 0) % (parseFloat(pkgQty) || 10)) > 0 ? ` + ${Math.round((Number(formData.stock_qty) || 0) % (parseFloat(pkgQty) || 10))} ${looseUnit || 'Pcs'}` : ''} ({( (Number(formData.stock_qty) || 0) / (parseFloat(pkgQty) || 10) ).toFixed(1)} {pkgUnit || 'Box'}es)</span>
@@ -685,11 +685,11 @@ export const InventoryView = () => {
                       </div>
 
                       {/* Step 3: Pricing */}
-                      <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-stone)', borderRadius: '6px', padding: '12px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-forest)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                      <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-stone)', borderRadius: '6px', padding: '10px 12px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-forest)', textTransform: 'uppercase', marginBottom: '6px' }}>
                           Step 3: Selling & Purchase Prices
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Price per 1 {looseUnit || 'Pc'} (Loose) *</label>
                             <input
@@ -716,7 +716,7 @@ export const InventoryView = () => {
                             />
                           </div>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginTop: '8px' }}>
                           <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label">Purchase Cost per {looseUnit || 'Pc'} *</label>
                             <input
@@ -748,11 +748,11 @@ export const InventoryView = () => {
                 </div>
 
                 {/* Industry Specific Fields (Pharmacy & Automotive) */}
-                <div style={{ padding: '12px 14px', backgroundColor: 'var(--color-stone-light)', borderRadius: '6px', marginTop: '6px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-forest)', marginBottom: '8px' }}>
+                <div style={{ padding: '10px 12px', backgroundColor: 'var(--color-stone-light)', borderRadius: '6px', marginTop: '6px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-forest)', marginBottom: '6px' }}>
                     Industry Specific Fields (Optional - Pharma & Automobile)
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Batch No (Pharma)</label>
                       <input

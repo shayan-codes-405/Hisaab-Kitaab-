@@ -805,7 +805,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
               <th style={{ textAlign: 'right' }}>Taxable Value</th>
               <th style={{ textAlign: 'right' }}>Total Amount</th>
               <th style={{ textAlign: 'center' }}>Payment Status</th>
-              <th style={{ textAlign: 'right' }}>Quick Actions</th>
+              <th className="table-sticky-actions" style={{ textAlign: 'right', minWidth: '220px' }}>Quick Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -878,57 +878,54 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       <option value="Partially Paid">Partially Paid</option>
                     </select>
                   </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <a
-                      href={`/api/invoices/${inv.id}/pdf`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-copper btn-sm"
-                      style={{ marginRight: '6px' }}
-                      title="Download Printable PDF"
-                    >
-                      📄 PDF
-                    </a>
-                    <button
-                      onClick={() => handlePrint(inv)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ marginRight: '6px' }}
-                      title="Print Tax Invoice / Receipt"
-                    >
-                      🖨️ Print
-                    </button>
-                    <button
-                      onClick={() => openSMSModalFor(inv)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ marginRight: '6px' }}
-                      title="Send TextBee SMS"
-                    >
-                      💬 SMS
-                    </button>
-                    <button
-                      onClick={() => handleOpenEdit(inv)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ marginRight: '6px' }}
-                      title="Edit Invoice"
-                    >
-                      ✏️ Edit
-                    </button>
-                    <button
-                      onClick={() => setSelectedInvoice(inv)}
-                      className="btn btn-ghost btn-sm"
-                      style={{ marginRight: '6px' }}
-                      title="View Details"
-                    >
-                      👁️ View
-                    </button>
-                    <button
-                      onClick={() => handleDeleteInvoice(inv)}
-                      className="btn btn-ghost btn-sm"
-                      style={{ color: '#DC2626', fontWeight: 600, border: '1px solid rgba(220,38,38,0.2)' }}
-                      title="Delete Invoice and Return Stock"
-                    >
-                      🗑️ Delete
-                    </button>
+                  <td className="table-sticky-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <a
+                        href={`/api/invoices/${inv.id}/pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-copper btn-xs"
+                        title="Download Printable PDF"
+                      >
+                        📄 PDF
+                      </a>
+                      <button
+                        onClick={() => handlePrint(inv)}
+                        className="btn btn-secondary btn-xs"
+                        title="Print Tax Invoice / Receipt"
+                      >
+                        🖨️ Print
+                      </button>
+                      <button
+                        onClick={() => openSMSModalFor(inv)}
+                        className="btn btn-secondary btn-xs"
+                        title="Send TextBee SMS"
+                      >
+                        💬 SMS
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(inv)}
+                        className="btn btn-secondary btn-xs"
+                        title="Edit Invoice"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={() => setSelectedInvoice(inv)}
+                        className="btn btn-ghost btn-xs"
+                        title="View Details"
+                      >
+                        👁️ View
+                      </button>
+                      <button
+                        onClick={() => handleDeleteInvoice(inv)}
+                        className="btn btn-danger-subtle btn-xs"
+                        style={{ fontWeight: 700 }}
+                        title="Delete Invoice and Return Stock"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -942,7 +939,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           ==================================================================== */}
       {showCreatorModal && (
         <div className="modal-backdrop">
-          <div className="modal-sheet" style={{ maxWidth: '1150px', width: '95vw', height: '90vh' }}>
+          <div className="modal-sheet" style={{ maxWidth: '1150px', width: '95vw', maxHeight: '90vh', height: '90vh', display: 'flex', flexDirection: 'column' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: 'var(--color-forest)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '13px' }}>
@@ -962,7 +959,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
               </button>
             </div>
 
-            <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', overflowY: 'auto' }}>
+            <div className="modal-body invoice-creator-body">
               {/* Left Column: Form Fields */}
               <form id="invoice-create-form" onSubmit={handleCreateInvoice}>
                 {/* 1. Customer Card */}
@@ -1510,52 +1507,52 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       {selectedInvoice && (
         <div className="modal-backdrop">
           <div className="modal-sheet modal-sheet-lg">
-            <div className="modal-header">
+            <div className="modal-header" style={{ flexWrap: 'wrap', gap: '8px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--color-forest)' }}>
                 Invoice {selectedInvoice.invoice_number}
               </h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <a
                   href={`/api/invoices/${selectedInvoice.id}/pdf`}
                   target="_blank"
                   rel="noreferrer"
-                  className="btn btn-copper btn-sm"
+                  className="btn btn-copper btn-xs"
                 >
-                  Download PDF
+                  📄 PDF
                 </a>
                 <button
                   onClick={() => handlePrint(selectedInvoice)}
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-secondary btn-xs"
                   title="Print Tax Invoice / Bill"
                 >
                   🖨️ Print
                 </button>
                 <button
                   onClick={() => openSMSModalFor(selectedInvoice)}
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-secondary btn-xs"
                 >
                   💬 Send SMS
                 </button>
                 <button
                   onClick={() => handleOpenEdit(selectedInvoice)}
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-secondary btn-xs"
                 >
                   ✏️ Edit
                 </button>
                 <button
                   onClick={() => handleDeleteInvoice(selectedInvoice)}
-                  className="btn btn-ghost btn-sm"
-                  style={{ color: '#DC2626' }}
+                  className="btn btn-danger-subtle btn-xs"
+                  style={{ fontWeight: 700 }}
                 >
-                  Delete
+                  🗑️ Delete
                 </button>
-                <button onClick={() => setSelectedInvoice(null)} className="btn btn-ghost btn-sm">
+                <button onClick={() => setSelectedInvoice(null)} className="btn btn-ghost btn-xs">
                   ✕
                 </button>
               </div>
             </div>
 
-            <div className="modal-body" style={{ maxHeight: '70vh' }}>
+            <div className="modal-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', fontSize: '12.5px' }}>
                 <div>
                   <div style={{ color: 'var(--color-muted)' }}>Billed To:</div>
