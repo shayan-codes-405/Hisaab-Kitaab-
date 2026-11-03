@@ -27,8 +27,8 @@ export const InventoryView = () => {
   // Stock Inward & Security Workflow State
   const [showInwardModal, setShowInwardModal] = useState(false);
   const [inwardProduct, setInwardProduct] = useState(null);
-  const [inwardQty, setInwardQty] = useState(50);
-  const [inwardSupplier, setInwardSupplier] = useState('Balaji Distributors');
+  const [inwardQty, setInwardQty] = useState('');
+  const [inwardSupplier, setInwardSupplier] = useState('');
   const [inwardBillNo, setInwardBillNo] = useState('');
   const [inwardBillDate, setInwardBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [inwardCostPrice, setInwardCostPrice] = useState('');
@@ -285,9 +285,9 @@ export const InventoryView = () => {
 
   const openInwardModal = async (p) => {
     setInwardProduct(p);
-    setInwardQty(50);
-    setInwardSupplier('Balaji Distributors');
-    setInwardBillNo(`BILL-${Date.now().toString().slice(-4)}`);
+    setInwardQty('');
+    setInwardSupplier('');
+    setInwardBillNo('');
     setInwardBillDate(new Date().toISOString().split('T')[0]);
     setInwardCostPrice(p.purchase_price ? String(p.purchase_price) : '');
     setInwardOtp('');
@@ -1053,7 +1053,7 @@ export const InventoryView = () => {
                       type="text"
                       required
                       className="form-input"
-                      placeholder="e.g. Balaji Distributors"
+                      placeholder="Enter supplier name"
                       value={inwardSupplier}
                       onChange={(e) => setInwardSupplier(e.target.value)}
                     />
@@ -1064,7 +1064,7 @@ export const InventoryView = () => {
                       type="text"
                       required
                       className="form-input"
-                      placeholder="e.g. GST-9021"
+                      placeholder="Enter invoice or bill number"
                       value={inwardBillNo}
                       onChange={(e) => setInwardBillNo(e.target.value)}
                     />
@@ -1149,7 +1149,7 @@ export const InventoryView = () => {
                           rows={2}
                           required
                           minLength={10}
-                          placeholder="e.g. Owner busy in meeting, delivery arrived, 50 units carton verified on floor."
+                          placeholder="Enter reason for emergency restock without prior audit"
                           className="form-input"
                           style={{ fontSize: '12px' }}
                           value={inwardDeclaration}

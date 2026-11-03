@@ -169,8 +169,31 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
     res = products_col.insert_one(product_doc)
     product_id = str(res.inserted_id)
 
-    # Initial stock movement record if initial stock > 0
+    # Initial stock movement & inward audit record if initial stock > 0
     if data.stock_qty > 0:
+        staff_id = str(user.get("id") or user.get("_id") or user.get("username"))
+        staff_name = user.get("full_name") or user.get("username", "Staff")
+        
+        inward_doc = {
+            "product_id": ObjectId(product_id),
+            "product_name": product_doc["name"],
+            "sku": product_doc["sku"],
+            "quantity_received": float(data.stock_qty),
+            "stock_after": float(data.stock_qty),
+            "supplier_name": "Opening Inventory",
+            "supplier_bill_no": "OPENING-STOCK",
+            "supplier_bill_date": datetime.now().strftime("%Y-%m-%d"),
+            "received_by_id": staff_id,
+            "received_by_name": staff_name,
+            "received_by_role": user.get("role", "staff"),
+            "authorization_type": "NORMAL",
+            "emergency_declaration": "",
+            "status": "PENDING_AUDIT" if user.get("role") != "admin" else "VERIFIED",
+            "created_at": datetime.now(timezone.utc),
+            "cron_reminder_sent": False
+        }
+        stock_inwards_col.insert_one(inward_doc)
+
         stock_movements_col.insert_one({
             "product_id": ObjectId(product_id),
             "product_name": product_doc["name"],
@@ -180,8 +203,19 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
             "stock_after": data.stock_qty,
             "reference": "Initial Inventory Opening",
             "created_by": user.get("username", "system"),
+            "staff_name": staff_name,
             "created_at": datetime.now(timezone.utc)
         })
+
+        if user.get("role") != "admin":
+            notify_stock_inward(
+                staff_name=staff_name,
+                product_name=product_doc["name"],
+                quantity=data.stock_qty,
+                supplier_name="New Product Creation",
+                supplier_bill_no="OPENING-STOCK",
+                auth_type="NORMAL"
+            )
 
     return {
         "message": f"Product '{data.name}' added successfully.",
