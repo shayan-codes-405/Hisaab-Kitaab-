@@ -25,6 +25,7 @@ invoices_col = db["invoices"]
 stock_movements_col = db["stock_movements"]
 sms_logs_col = db["sms_logs"]
 otp_verifications_col = db["otp_verifications"]
+stock_inwards_col = db["stock_inwards"]
 
 def init_db_indexes():
     """Ensure all mandatory unique and performance indexes exist."""
@@ -42,6 +43,10 @@ def init_db_indexes():
         invoices_col.create_index([("payment_status", ASCENDING)])
         # Stock movements tracking
         stock_movements_col.create_index([("product_id", ASCENDING), ("created_at", DESCENDING)])
+        # Stock inwards security & audit tracking
+        stock_inwards_col.create_index([("product_id", ASCENDING), ("created_at", DESCENDING)])
+        stock_inwards_col.create_index([("status", ASCENDING)])
+        stock_inwards_col.create_index([("created_at", DESCENDING)])
         # SMS audit logs
         sms_logs_col.create_index([("created_at", DESCENDING)])
         # 10-minute auto-expiring TTL index for OTP verification codes

@@ -24,6 +24,32 @@ export const InventoryView = () => {
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [stockLedger, setStockLedger] = useState([]);
 
+  // Stock Inward & Security Workflow State
+  const [showInwardModal, setShowInwardModal] = useState(false);
+  const [inwardProduct, setInwardProduct] = useState(null);
+  const [inwardQty, setInwardQty] = useState(50);
+  const [inwardSupplier, setInwardSupplier] = useState('Balaji Distributors');
+  const [inwardBillNo, setInwardBillNo] = useState('');
+  const [inwardBillDate, setInwardBillDate] = useState(new Date().toISOString().split('T')[0]);
+  const [inwardCostPrice, setInwardCostPrice] = useState('');
+  const [inwardAuditStatus, setInwardAuditStatus] = useState(null);
+  const [inwardAuthType, setInwardAuthType] = useState('NORMAL');
+  const [inwardOtp, setInwardOtp] = useState('');
+  const [inwardDeclaration, setInwardDeclaration] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [inwardSubmitting, setInwardSubmitting] = useState(false);
+  const [phoneHint, setPhoneHint] = useState('');
+
+  // Stock Audit Tray Modal State
+  const [showAuditTrayModal, setShowAuditTrayModal] = useState(false);
+  const [auditInwards, setAuditInwards] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState('all');
+  const [selectedInwardForDiscrepancy, setSelectedInwardForDiscrepancy] = useState(null);
+  const [discrepancyActualQty, setDiscrepancyActualQty] = useState('');
+  const [discrepancyNotes, setDiscrepancyNotes] = useState('');
+
   // Form State
   const initialForm = {
     name: '',
@@ -257,6 +283,143 @@ export const InventoryView = () => {
     }
   };
 
+  const openInwardModal = async (p) => {
+    setInwardProduct(p);
+    setInwardQty(50);
+    setInwardSupplier('Balaji Distributors');
+    setInwardBillNo(`BILL-${Date.now().toString().slice(-4)}`);
+    setInwardBillDate(new Date().toISOString().split('T')[0]);
+    setInwardCostPrice(p.purchase_price ? String(p.purchase_price) : '');
+    setInwardOtp('');
+    setInwardDeclaration('');
+    setOtpSent(false);
+    setInwardAuditStatus(null);
+    setInwardAuthType('NORMAL');
+
+    try {
+      const res = await apiFetch(`/api/inventory/inward/status/${p.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInwardAuditStatus(data);
+        if (data.has_unverified && !isAdmin) {
+          setInwardAuthType('SMS_OTP');
+        } else {
+          setInwardAuthType('NORMAL');
+        }
+      }
+    } catch (e) {
+      console.error('Failed to check inward status:', e);
+    }
+    setShowInwardModal(true);
+  };
+
+  const handleSendRestockOtp = async () => {
+    if (!inwardProduct) return;
+    setOtpSending(true);
+    try {
+      const res = await apiFetch('/api/inventory/inward/request-otp', {
+        method: 'POST',
+        body: JSON.stringify({
+          product_id: inwardProduct.id,
+          quantity: parseFloat(inwardQty) || 1,
+          supplier_bill_no: inwardBillNo || 'PENDING'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to dispatch OTP');
+      showToast(data.message, 'success');
+      setOtpSent(true);
+      if (data.phone_hint) setPhoneHint(data.phone_hint);
+      if (data.demo_otp) {
+        setInwardOtp(data.demo_otp);
+        showToast(`[Demo Mode] OTP autofilled: ${data.demo_otp}`, 'info');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleInwardSubmit = async (e) => {
+    e.preventDefault();
+    if (!inwardProduct) return;
+    setInwardSubmitting(true);
+    try {
+      const payload = {
+        product_id: inwardProduct.id,
+        quantity: parseFloat(inwardQty) || 0,
+        supplier_name: inwardSupplier.trim(),
+        supplier_bill_no: inwardBillNo.trim(),
+        supplier_bill_date: inwardBillDate,
+        cost_price: inwardCostPrice ? parseFloat(inwardCostPrice) : null,
+        authorization_type: inwardAuthType,
+        otp: inwardOtp.trim(),
+        emergency_declaration: inwardDeclaration.trim()
+      };
+
+      const res = await apiFetch('/api/inventory/inward', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to record stock inward');
+
+      showToast(data.message, 'success');
+      setShowInwardModal(false);
+      loadProducts(true);
+      refreshData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setInwardSubmitting(false);
+    }
+  };
+
+  const loadAuditInwards = async (status = auditFilter) => {
+    setAuditLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (status !== 'all') params.append('status_filter', status);
+      const res = await apiFetch(`/api/inventory/inwards?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAuditInwards(data);
+      }
+    } catch (err) {
+      showToast('Error loading stock inward audit records', 'error');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const openAuditTray = () => {
+    setShowAuditTrayModal(true);
+    loadAuditInwards(auditFilter);
+  };
+
+  const handleAuditAction = async (inwardId, action, actualBillQty = null, notes = '') => {
+    try {
+      const res = await apiFetch(`/api/inventory/inward/${inwardId}/audit`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action,
+          actual_bill_qty: actualBillQty !== null ? parseFloat(actualBillQty) : null,
+          audit_notes: notes
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Audit action failed');
+      showToast(data.message, 'success');
+      setSelectedInwardForDiscrepancy(null);
+      loadAuditInwards(auditFilter);
+      loadProducts();
+      refreshData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   return (
     <div>
       {/* Top Controls & Filtering Bar */}
@@ -317,7 +480,11 @@ export const InventoryView = () => {
             </select>
 
             <button onClick={() => viewLedger(null)} className="btn btn-secondary">
-              Stock Ledger 📋
+              Stock Ledger
+            </button>
+
+            <button onClick={openAuditTray} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <span>Stock Audit Tray</span>
             </button>
 
             {(isAdmin || user?.role === 'inventory_manager') && (
@@ -417,15 +584,11 @@ export const InventoryView = () => {
                         {(isAdmin || user?.role === 'inventory_manager') ? (
                           <>
                             <button
-                              onClick={() => {
-                                setRestockProduct(p);
-                                setRestockQty(10);
-                                setShowRestockModal(true);
-                              }}
-                              title="Quick Restock"
+                              onClick={() => openInwardModal(p)}
+                              title="Stock Inward & Restock"
                               className="btn btn-secondary btn-xs"
                             >
-                              + Restock
+                              + Inward
                             </button>
 
                             <button
@@ -818,67 +981,412 @@ export const InventoryView = () => {
         </div>
       )}
 
-      {/* Quick Restock Modal */}
-      {showRestockModal && restockProduct && (
+      {/* Stock Inward & Security Restock Modal */}
+      {showInwardModal && inwardProduct && (
         <div className="modal-backdrop">
-          <div className="modal-sheet" style={{ maxWidth: '400px' }}>
+          <div className="modal-sheet" style={{ maxWidth: '480px' }}>
             <div className="modal-header">
-              <h3 style={{ margin: 0, fontSize: '15px' }}>Quick Restock: {restockProduct.name}</h3>
-              <button onClick={() => setShowRestockModal(false)} className="btn btn-ghost btn-sm">✕</button>
-            </div>
-            <form onSubmit={handleRestockSubmit}>
-              <div className="modal-body">
-                <div style={{ fontSize: '13px', color: 'var(--color-muted)', marginBottom: '14px' }}>
-                  Current Stock: <b>{restockProduct.stock_qty} {restockProduct.unit}</b>
-                  {restockProduct.package_unit && restockProduct.package_qty > 1 && (
-                    <span style={{ color: 'var(--color-forest)', fontWeight: 600 }}>
-                      {' '}(≈ {(restockProduct.stock_qty / restockProduct.package_qty).toFixed(1)} {restockProduct.package_unit}s)
-                    </span>
-                  )}
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15.5px' }}>Stock Inward: {inwardProduct.name}</h3>
+                <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                  SKU: {inwardProduct.sku} • Current Stock: <b>{inwardProduct.stock_qty} {inwardProduct.unit}</b>
                 </div>
-
-                {restockProduct.package_unit && restockProduct.package_qty > 1 && (
-                  <div style={{ display: 'flex', gap: '14px', marginBottom: '12px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <input type="radio" checked={restockUnitType === 'pkg'} onChange={() => setRestockUnitType('pkg')} />
-                      Restock in {restockProduct.package_unit}s
-                    </label>
-                    <label style={{ fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <input type="radio" checked={restockUnitType === 'base'} onChange={() => setRestockUnitType('base')} />
-                      Restock in {restockProduct.unit} (Loose)
-                    </label>
+              </div>
+              <button onClick={() => setShowInwardModal(false)} className="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <form onSubmit={handleInwardSubmit}>
+              <div className="modal-body">
+                {/* Security Status Alert Box */}
+                {inwardAuditStatus?.has_unverified && (
+                  <div
+                    style={{
+                      padding: '12px',
+                      borderRadius: '6px',
+                      backgroundColor: '#FEF3C7',
+                      border: '1px solid #FDE68A',
+                      marginBottom: '16px',
+                      fontSize: '12px',
+                      color: '#92400E'
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, marginBottom: '2px' }}>
+                      Security Notice: Prior Delivery Pending Admin Audit
+                    </div>
+                    <div>
+                      Previous delivery from Bill #{inwardAuditStatus.oldest_unverified?.supplier_bill_no || 'Prior Batch'} has not yet been audited against physical invoices.
+                    </div>
                   </div>
                 )}
 
-                <div className="form-group">
-                  <label className="form-label">
-                    Quantity to Add ({restockProduct.package_unit && restockUnitType === 'pkg' ? restockProduct.package_unit + 's' : restockProduct.unit})
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0.1"
-                    required
-                    className="form-input"
-                    value={restockQty}
-                    onChange={(e) => setRestockQty(e.target.value)}
-                  />
-                  {restockProduct.package_unit && restockProduct.package_qty > 1 && restockUnitType === 'pkg' && (
-                    <div style={{ fontSize: '11px', color: 'var(--color-forest)', fontWeight: 600, marginTop: '4px' }}>
-                      = +{(parseFloat(restockQty) || 0) * restockProduct.package_qty} {restockProduct.unit} will be added to inventory stock.
-                    </div>
-                  )}
+                {/* Inward Inputs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Quantity Received ({inwardProduct.unit}) *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.1"
+                      required
+                      className="form-input"
+                      value={inwardQty}
+                      onChange={(e) => setInwardQty(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Purchase Cost / Unit (₹)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="form-input"
+                      placeholder={String(inwardProduct.purchase_price || '0.00')}
+                      value={inwardCostPrice}
+                      onChange={(e) => setInwardCostPrice(e.target.value)}
+                    />
+                  </div>
                 </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Supplier / Vendor Name *</label>
+                    <input
+                      type="text"
+                      required
+                      className="form-input"
+                      placeholder="e.g. Balaji Distributors"
+                      value={inwardSupplier}
+                      onChange={(e) => setInwardSupplier(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Supplier Invoice / Challan # *</label>
+                    <input
+                      type="text"
+                      required
+                      className="form-input"
+                      placeholder="e.g. GST-9021"
+                      value={inwardBillNo}
+                      onChange={(e) => setInwardBillNo(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Supplier Bill Date</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={inwardBillDate}
+                    onChange={(e) => setInwardBillDate(e.target.value)}
+                  />
+                </div>
+
+                {/* Authorization Mode Selection if Prior Inward Unverified */}
+                {inwardAuditStatus?.has_unverified && !isAdmin && (
+                  <div style={{ borderTop: '1px solid var(--color-stone-light)', paddingTop: '14px', marginTop: '10px' }}>
+                    <label className="form-label" style={{ fontWeight: 700, marginBottom: '8px', display: 'block' }}>
+                      Select Restock Authorization Mode:
+                    </label>
+                    <div style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="auth_type"
+                          value="SMS_OTP"
+                          checked={inwardAuthType === 'SMS_OTP'}
+                          onChange={() => setInwardAuthType('SMS_OTP')}
+                        />
+                        Option 1: Owner SMS OTP
+                      </label>
+                      <label style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="auth_type"
+                          value="EMERGENCY_OVERRIDE"
+                          checked={inwardAuthType === 'EMERGENCY_OVERRIDE'}
+                          onChange={() => setInwardAuthType('EMERGENCY_OVERRIDE')}
+                        />
+                        Option 2: Emergency Declaration
+                      </label>
+                    </div>
+
+                    {inwardAuthType === 'SMS_OTP' && (
+                      <div style={{ backgroundColor: '#F8F6F0', padding: '12px', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={handleSendRestockOtp}
+                            disabled={otpSending}
+                            className="btn btn-secondary btn-sm"
+                          >
+                            {otpSending ? 'Dispatching SMS...' : (otpSent ? 'Resend OTP' : 'Request Owner OTP')}
+                          </button>
+                          {otpSent && (
+                            <span style={{ fontSize: '11.5px', color: 'var(--color-forest)', fontWeight: 600 }}>
+                              OTP dispatched to Owner {phoneHint ? `(•••• ${phoneHint})` : ''}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          placeholder="Enter 6-digit OTP from Owner"
+                          className="form-input"
+                          style={{ fontFamily: 'var(--font-mono)', letterSpacing: '2px', fontWeight: 700 }}
+                          value={inwardOtp}
+                          onChange={(e) => setInwardOtp(e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    {inwardAuthType === 'EMERGENCY_OVERRIDE' && (
+                      <div style={{ backgroundColor: '#FFFBEB', padding: '12px', borderRadius: '6px' }}>
+                        <label className="form-label" style={{ fontSize: '11.5px', color: '#92400E' }}>
+                          Mandatory Statement (Min 10 characters explaining why restock is proceeding):
+                        </label>
+                        <textarea
+                          rows={2}
+                          required
+                          minLength={10}
+                          placeholder="e.g. Owner busy in meeting, delivery arrived, 50 units carton verified on floor."
+                          className="form-input"
+                          style={{ fontSize: '12px' }}
+                          value={inwardDeclaration}
+                          onChange={(e) => setInwardDeclaration(e.target.value)}
+                        />
+                        <div style={{ fontSize: '11px', color: '#B45309', marginTop: '4px' }}>
+                          This statement will be permanently recorded in MongoDB and texted to the Store Owner immediately.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowRestockModal(false)} className="btn btn-secondary">
+                <button type="button" onClick={() => setShowInwardModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-copper">
-                  Confirm Restock
+                <button type="submit" disabled={inwardSubmitting} className="btn btn-primary">
+                  {inwardSubmitting ? 'Logging Inward...' : 'Confirm Inward & Notify Owner'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Stock Inward Audit Tray Modal */}
+      {showAuditTrayModal && (
+        <div className="modal-backdrop">
+          <div className="modal-sheet modal-sheet-lg" style={{ maxWidth: '950px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>Stock Inward Audit Tray</h3>
+                <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                  Audit incoming shipments, verify physical supplier bills, and flag discrepancies.
+                </div>
+              </div>
+              <button onClick={() => setShowAuditTrayModal(false)} className="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '65vh' }}>
+              {/* Filter Tabs */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                {['all', 'PENDING_AUDIT', 'VERIFIED', 'FLAGGED_DISCREPANCY'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => {
+                      setAuditFilter(f);
+                      loadAuditInwards(f);
+                    }}
+                    className={`btn btn-xs ${auditFilter === f ? 'btn-primary' : 'btn-secondary'}`}
+                  >
+                    {f === 'all' ? 'All Inwards' : f === 'PENDING_AUDIT' ? 'Pending Audit' : f === 'VERIFIED' ? 'Verified' : 'Discrepancies'}
+                  </button>
+                ))}
+              </div>
+
+              {auditLoading ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
+                  Loading stock inward logs...
+                </div>
+              ) : auditInwards.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)', backgroundColor: '#F8F6F0', borderRadius: '6px' }}>
+                  No inward records found for this filter.
+                </div>
+              ) : (
+                <div className="ledger-table-container" style={{ border: 'none', boxShadow: 'none' }}>
+                  <table className="ledger-table">
+                    <thead>
+                      <tr>
+                        <th>Date & Time</th>
+                        <th>Product & SKU</th>
+                        <th style={{ textAlign: 'center' }}>Inward Qty</th>
+                        <th>Supplier & Bill #</th>
+                        <th>Received By</th>
+                        <th>Auth Mode</th>
+                        <th style={{ textAlign: 'center' }}>Status</th>
+                        {isAdmin && <th style={{ textAlign: 'right' }}>Audit Actions</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditInwards.map((inw) => {
+                        const isPending = inw.status === 'PENDING_AUDIT';
+                        const isVerified = inw.status === 'VERIFIED';
+                        const isDiscrepancy = inw.status === 'FLAGGED_DISCREPANCY';
+                        return (
+                          <tr key={inw.id}>
+                            <td style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                              {new Date(inw.created_at).toLocaleString('en-IN')}
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>{inw.product_name}</div>
+                              <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}>{inw.sku}</div>
+                            </td>
+                            <td className="tabular-nums" style={{ textAlign: 'center', fontWeight: 700, color: '#166534' }}>
+                              +{inw.quantity_received}
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>{inw.supplier_name}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--color-forest)' }}>Bill: #{inw.supplier_bill_no}</div>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '12px', fontWeight: 600 }}>{inw.received_by_name}</span>
+                            </td>
+                            <td>
+                              <span
+                                style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 600,
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  backgroundColor: inw.authorization_type === 'EMERGENCY_OVERRIDE' ? '#FFEDD5' : inw.authorization_type === 'SMS_OTP' ? '#EDE9FE' : '#E0E7FF',
+                                  color: inw.authorization_type === 'EMERGENCY_OVERRIDE' ? '#C2410C' : inw.authorization_type === 'SMS_OTP' ? '#5B21B6' : '#3730A3'
+                                }}
+                              >
+                                {inw.authorization_type}
+                              </span>
+                              {inw.emergency_declaration && (
+                                <div style={{ fontSize: '10.5px', color: 'var(--color-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                                  "{inw.emergency_declaration.slice(0, 45)}..."
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  backgroundColor: isVerified ? '#DCFCE7' : isDiscrepancy ? '#FEE2E2' : '#FEF3C7',
+                                  color: isVerified ? '#166534' : isDiscrepancy ? '#991B1B' : '#92400E'
+                                }}
+                              >
+                                {isVerified ? 'Verified' : isDiscrepancy ? `Shortage (${inw.discrepancy_qty})` : 'Pending Audit'}
+                              </span>
+                            </td>
+                            {isAdmin && (
+                              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                {isPending ? (
+                                  <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                    <button
+                                      onClick={() => handleAuditAction(inw.id, 'VERIFY')}
+                                      className="btn btn-xs"
+                                      style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0' }}
+                                    >
+                                      ✓ Verify
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedInwardForDiscrepancy(inw);
+                                        setDiscrepancyActualQty(String(inw.quantity_received));
+                                        setDiscrepancyNotes('');
+                                      }}
+                                      className="btn btn-xs"
+                                      style={{ backgroundColor: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5' }}
+                                    >
+                                      Flag Shortage
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                                    Audited by {inw.audited_by || 'Admin'}
+                                  </span>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setShowAuditTrayModal(false)} className="btn btn-secondary">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discrepancy Recording Sub-Modal */}
+      {selectedInwardForDiscrepancy && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-sheet" style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '15px', color: '#991B1B' }}>Flag Delivery Discrepancy</h3>
+              <button onClick={() => setSelectedInwardForDiscrepancy(null)} className="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize: '12.5px', marginBottom: '12px' }}>
+                Item: <b>{selectedInwardForDiscrepancy.product_name}</b> (Bill #{selectedInwardForDiscrepancy.supplier_bill_no})
+                <br />
+                Logged by {selectedInwardForDiscrepancy.received_by_name}: <b>{selectedInwardForDiscrepancy.quantity_received} units</b>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Actual Quantity on Physical Supplier Bill *</label>
+                <input
+                  type="number"
+                  step="any"
+                  className="form-input"
+                  value={discrepancyActualQty}
+                  onChange={(e) => setDiscrepancyActualQty(e.target.value)}
+                />
+                {discrepancyActualQty && (
+                  <div style={{ fontSize: '12px', marginTop: '4px', fontWeight: 600, color: '#991B1B' }}>
+                    Calculated Difference: {parseFloat(discrepancyActualQty) - selectedInwardForDiscrepancy.quantity_received} units shortage
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Audit Remarks / Justification</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Supplier challan shows 100, received carton only had 95."
+                  value={discrepancyNotes}
+                  onChange={(e) => setDiscrepancyNotes(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setSelectedInwardForDiscrepancy(null)} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAuditAction(selectedInwardForDiscrepancy.id, 'DISCREPANCY', discrepancyActualQty, discrepancyNotes)}
+                className="btn btn-primary"
+                style={{ backgroundColor: '#DC2626', borderColor: '#DC2626' }}
+              >
+                Save Discrepancy Flag
+              </button>
+            </div>
           </div>
         </div>
       )}

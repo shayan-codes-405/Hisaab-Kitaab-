@@ -495,6 +495,21 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
             "created_at": datetime.now(timezone.utc)
         })
 
+        # Trigger automatic low-stock alert via TextBee SMS to Store Owner if below threshold
+        if updated_prod:
+            threshold = float(updated_prod.get("low_stock_threshold", 5.0))
+            if new_balance <= threshold:
+                try:
+                    from services.stock_alert_service import notify_low_stock
+                    notify_low_stock(
+                        product_name=deduction["product_name"],
+                        remaining_qty=new_balance,
+                        threshold=threshold,
+                        unit=deduction.get("unit", "Pcs")
+                    )
+                except Exception:
+                    pass
+
     res = invoices_col.insert_one(invoice_doc)
     invoice_id = str(res.inserted_id)
 
