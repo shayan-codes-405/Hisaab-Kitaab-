@@ -91,24 +91,26 @@ const MainApplication = () => {
         />
 
         <main className="content-viewport">
-          {activeTab === 'dashboard' && (
+          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
             <DashboardView
               onNewInvoice={handleNewInvoice}
               onNewProduct={handleNewProduct}
               onViewInvoice={handleViewInvoiceFromDashboard}
             />
-          )}
+          </div>
 
-          {activeTab === 'invoice' && (
+          <div style={{ display: activeTab === 'invoice' ? 'block' : 'none' }}>
             <InvoiceView
               viewInvoiceId={viewInvoiceId}
               onClearViewInvoiceId={() => setViewInvoiceId(null)}
               autoOpenCreator={openCreateInvoice}
               onResetAutoOpen={() => setOpenCreateInvoice(false)}
             />
-          )}
+          </div>
 
-          {activeTab === 'inventory' && <InventoryView />}
+          <div style={{ display: activeTab === 'inventory' ? 'block' : 'none' }}>
+            <InventoryView />
+          </div>
         </main>
       </div>
     </div>

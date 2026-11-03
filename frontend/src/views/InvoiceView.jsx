@@ -229,12 +229,12 @@ export const printInvoiceViaIframe = (inv, seller) => {
 };
 
 export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onClearViewInvoiceId, autoOpenCreator = false, onResetAutoOpen = null }) => {
-  const { apiFetch, business, refreshBusiness, isAdmin } = useAuth();
+  const { apiFetch, business, refreshBusiness, isAdmin, dataVersion, refreshData } = useAuth();
   const { showToast } = useToast();
 
   const [invoices, setInvoices] = useState([]);
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Search & Filter
   const [search, setSearch] = useState('');
@@ -334,8 +334,10 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load Invoices from MongoDB
-  const loadInvoices = async () => {
-    setLoading(true);
+  const loadInvoices = async (forceSpinner = false) => {
+    if (invoices.length === 0 || forceSpinner) {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
@@ -368,7 +370,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
   useEffect(() => {
     loadInvoices();
     loadProducts();
-  }, [statusFilter]);
+  }, [statusFilter, dataVersion]);
 
   useEffect(() => {
     if (viewInvoiceId) {
@@ -752,6 +754,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       showToast(data.message || `Invoice ${inv.invoice_number} deleted and stock returned.`, 'success');
       loadInvoices();
       loadProducts();
+      refreshData();
       if (selectedInvoice && selectedInvoice.id === inv.id) {
         setSelectedInvoice(null);
       }
@@ -898,6 +901,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       ]);
       loadInvoices();
       loadProducts();
+      refreshData();
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -916,6 +920,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       if (!res.ok) throw new Error(data.detail || 'Update failed');
       showToast(data.message, 'success');
       loadInvoices();
+      refreshData();
       if (selectedInvoice && selectedInvoice.id === invId) {
         setSelectedInvoice({ ...selectedInvoice, payment_status: newStatus });
       }
@@ -1087,7 +1092,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && invoices.length === 0 ? (
               <tr>
                 <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
                   Loading invoices from database...

@@ -29,12 +29,14 @@ ChartJS.register(
 );
 
 export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => {
-  const { apiFetch } = useAuth();
+  const { apiFetch, dataVersion } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
 
-  const loadMetrics = async () => {
-    setLoading(true);
+  const loadMetrics = async (forceLoader = false) => {
+    if (!data || forceLoader) {
+      setLoading(true);
+    }
     try {
       const res = await apiFetch('/api/dashboard/metrics');
       if (res.ok) {
@@ -50,15 +52,17 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
 
   useEffect(() => {
     loadMetrics();
-  }, []);
+  }, [dataVersion]);
 
-  if (loading || !data) {
+  if (loading && !data) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-muted)' }}>
         <div style={{ fontSize: '15px', fontWeight: 600 }}>Loading ledger metrics from MongoDB...</div>
       </div>
     );
   }
+
+  if (!data) return null;
 
   const { kpi, charts, low_stock_alerts, recent_invoices } = data;
 

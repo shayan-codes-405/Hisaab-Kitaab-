@@ -3,12 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 export const InventoryView = () => {
-  const { apiFetch, isAdmin } = useAuth();
+  const { apiFetch, isAdmin, dataVersion, refreshData } = useAuth();
   const { showToast } = useToast();
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -51,8 +51,10 @@ export const InventoryView = () => {
   const [stockPackages, setStockPackages] = useState('');
   const [restockUnitType, setRestockUnitType] = useState('pkg');
 
-  const loadProducts = async () => {
-    setLoading(true);
+  const loadProducts = async (forceSpinner = false) => {
+    if (products.length === 0 || forceSpinner) {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
@@ -74,7 +76,7 @@ export const InventoryView = () => {
 
   useEffect(() => {
     loadProducts();
-  }, [categoryFilter, statusFilter]);
+  }, [categoryFilter, statusFilter, dataVersion]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -193,6 +195,7 @@ export const InventoryView = () => {
       showToast(data.message || 'Product saved successfully.', 'success');
       setShowProductModal(false);
       loadProducts();
+      refreshData();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -206,6 +209,7 @@ export const InventoryView = () => {
       if (!res.ok) throw new Error(data.detail || 'Could not delete product');
       showToast(data.message, 'success');
       loadProducts();
+      refreshData();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -233,6 +237,7 @@ export const InventoryView = () => {
       showToast(data.message, 'success');
       setShowRestockModal(false);
       loadProducts();
+      refreshData();
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -339,7 +344,7 @@ export const InventoryView = () => {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && products.length === 0 ? (
               <tr>
                 <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
                   Loading inventory catalog from MongoDB...

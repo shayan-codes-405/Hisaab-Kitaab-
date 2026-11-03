@@ -16,7 +16,10 @@ export const AuthProvider = ({ children }) => {
     return sessionStorage.getItem('hisabkitab_token');
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [dataVersion, setDataVersion] = useState(0);
   const { showToast } = useToast();
+
+  const refreshData = () => setDataVersion((v) => v + 1);
 
   const apiFetch = async (endpoint, options = {}) => {
     const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
@@ -151,7 +154,9 @@ export const AuthProvider = ({ children }) => {
         signup,
         logout,
         apiFetch,
-        refreshBusiness
+        refreshBusiness,
+        dataVersion,
+        refreshData
       }}
     >
       {children}
