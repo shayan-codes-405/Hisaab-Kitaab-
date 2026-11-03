@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, API_BASE } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { STATES_LIST, UT_LIST } from '../constants/states';
+import { PasswordInput } from '../components/PasswordInput';
 
 export const AuthView = () => {
   const { login, signup } = useAuth();
-  const [mode, setMode] = useState('signup'); // 'login' or 'signup'
+  const { showToast } = useToast();
+  const [mode, setMode] = useState('login'); // 'login', 'signup', or 'forgot'
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Blank initial forms
@@ -29,10 +32,25 @@ export const AuthView = () => {
   const [loginForm, setLoginForm] = useState(emptyLogin);
   const [signupForm, setSignupForm] = useState(emptySignup);
 
+  // Forgot Password State
+  const [forgotStep, setForgotStep] = useState(1); // 1: Send OTP, 2: Verify & Reset
+  const [forgotForm, setForgotForm] = useState({
+    username: '',
+    otp: '',
+    new_password: '',
+    confirm_password: ''
+  });
+  const [forgotOtpInfo, setForgotOtpInfo] = useState(null);
+
   const switchMode = (newMode) => {
     setMode(newMode);
-    setLoginForm({ ...emptyLogin });
-    setSignupForm({ ...emptySignup });
+    if (newMode !== 'login') setLoginForm({ ...emptyLogin });
+    if (newMode !== 'signup') setSignupForm({ ...emptySignup });
+    if (newMode !== 'forgot') {
+      setForgotStep(1);
+      setForgotForm({ username: '', otp: '', new_password: '', confirm_password: '' });
+      setForgotOtpInfo(null);
+    }
   };
 
   const handleLogin = async (e) => {
@@ -49,10 +67,11 @@ export const AuthView = () => {
   const handleSignup = async (e) => {
     e.preventDefault();
     if (!signupForm.username.trim() || !signupForm.password.trim() || !signupForm.full_name.trim()) {
+      showToast('Please fill in username, password, and owner name.', 'warning');
       return;
     }
     if (!signupForm.business_name.trim() || !signupForm.phone.trim() || !signupForm.state.trim()) {
-      alert('Please fill in all mandatory business fields (Business Name, Phone, and State).');
+      showToast('Please fill in all mandatory business fields (Business Name, Phone, and State).', 'warning');
       return;
     }
 
@@ -62,6 +81,82 @@ export const AuthView = () => {
     if (success) {
       setSignupForm({ ...emptySignup });
       setLoginForm({ ...emptyLogin });
+    }
+  };
+
+  // Step 1: Send OTP for password recovery
+  const handleForgotSendOtp = async (e) => {
+    e.preventDefault();
+    const cleanUser = forgotForm.username.trim();
+    if (!cleanUser) {
+      showToast('Please enter your account username.', 'warning');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: cleanUser })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to send verification code.');
+      }
+      setForgotOtpInfo(data);
+      setForgotStep(2);
+      showToast(data.message, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Step 2: Verify OTP and set new password
+  const handleForgotVerifyReset = async (e) => {
+    e.preventDefault();
+    if (!forgotForm.otp.trim()) {
+      showToast('Please enter the 6-digit verification OTP.', 'warning');
+      return;
+    }
+    if (forgotForm.new_password.length < 6) {
+      showToast('New password must be at least 6 characters long.', 'warning');
+      return;
+    }
+    if (forgotForm.new_password !== forgotForm.confirm_password) {
+      showToast('New passwords do not match. Please retype them carefully.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password/verify-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: forgotForm.username.trim(),
+          otp: forgotForm.otp.trim(),
+          new_password: forgotForm.new_password
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to reset password.');
+      }
+      showToast(data.message, 'success');
+
+      // Pre-populate login form with username
+      setLoginForm({
+        username: forgotForm.username.trim(),
+        password: ''
+      });
+      switchMode('login');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -79,10 +174,10 @@ export const AuthView = () => {
       <div
         style={{
           width: '100%',
-          maxWidth: mode === 'signup' ? '560px' : '400px',
+          maxWidth: mode === 'signup' ? '560px' : '420px',
           backgroundColor: '#ffffff',
-          borderRadius: '12px',
-          boxShadow: '0 8px 30px rgba(36, 60, 50, 0.08)',
+          borderRadius: '14px',
+          boxShadow: '0 12px 40px rgba(36, 60, 50, 0.1)',
           border: '1px solid var(--color-stone)',
           overflow: 'hidden',
           transition: 'all 0.25s ease'
@@ -104,8 +199,8 @@ export const AuthView = () => {
               src="/logo.png"
               alt="HisabKitab Logo"
               style={{
-                width: '46px',
-                height: '46px',
+                width: '44px',
+                height: '44px',
                 borderRadius: '50%',
                 objectFit: 'cover',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.3)',
@@ -169,16 +264,18 @@ export const AuthView = () => {
         </div>
 
         {/* Form Container */}
-        <div style={{ padding: '24px 28px' }}>
-          {mode === 'login' ? (
-            /* Sign In Form */
+        <div style={{ padding: '26px 28px' }}>
+          {/* ================================================================ */}
+          {/* MODE 1: SIGN IN (WITH FORGOT PASSWORD LINK & PASSWORD EYE ICON) */}
+          {/* ================================================================ */}
+          {mode === 'login' && (
             <form onSubmit={handleLogin}>
-              <div style={{ marginBottom: '18px' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-forest)', margin: 0 }}>
+              <div style={{ marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--color-forest)', margin: 0 }}>
                   Welcome Back
                 </h3>
-                <p style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>
-                  Log in to access your business ledger, invoices, and stock.
+                <p style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '3px' }}>
+                  Sign in as Owner or Staff to access your business ledger.
                 </p>
               </div>
 
@@ -195,12 +292,27 @@ export const AuthView = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Password</label>
-                <input
-                  type="password"
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Password</label>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      fontSize: '11.5px',
+                      color: 'var(--color-copper)',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+                <PasswordInput
                   required
-                  className="form-input"
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                 />
@@ -210,12 +322,12 @@ export const AuthView = () => {
                 type="submit"
                 disabled={isSubmitting}
                 className="btn btn-primary"
-                style={{ width: '100%', marginTop: '12px', padding: '10px' }}
+                style={{ width: '100%', marginTop: '16px', padding: '10px' }}
               >
                 {isSubmitting ? 'Authenticating...' : 'Sign In to Ledger →'}
               </button>
 
-              <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '12.5px', color: 'var(--color-muted)' }}>
+              <div style={{ textAlign: 'center', marginTop: '18px', fontSize: '12.5px', color: 'var(--color-muted)' }}>
                 Need a new business ledger?{' '}
                 <span
                   onClick={() => switchMode('signup')}
@@ -225,11 +337,168 @@ export const AuthView = () => {
                 </span>
               </div>
             </form>
-          ) : (
-            /* Sign Up: Business Owner / Admin Registration */
+          )}
+
+          {/* ================================================================ */}
+          {/* MODE 2: FORGOT PASSWORD (FOR BOTH ADMIN & EMPLOYEE)             */}
+          {/* ================================================================ */}
+          {mode === 'forgot' && (
+            <div>
+              <div style={{ marginBottom: '18px' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--color-forest)', margin: 0 }}>
+                  Reset Password
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '3px' }}>
+                  {forgotStep === 1
+                    ? 'Enter your username (Admin or Staff) to verify via SMS OTP.'
+                    : `Enter the code sent to registered mobile ending in •••• ${forgotOtpInfo?.phone_hint || '••••'}.`}
+                </p>
+              </div>
+
+              {/* Step 1: Request OTP by Username */}
+              {forgotStep === 1 && (
+                <form onSubmit={handleForgotSendOtp}>
+                  <div className="form-group">
+                    <label className="form-label">Account Username</label>
+                    <input
+                      type="text"
+                      required
+                      className="form-input"
+                      placeholder="e.g. admin or staff_username"
+                      value={forgotForm.username}
+                      onChange={(e) => setForgotForm({ ...forgotForm, username: e.target.value })}
+                    />
+                    <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '5px' }}>
+                      💡 A 6-digit OTP will be dispatched to your registered phone number via SMS.
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn btn-primary"
+                    style={{ width: '100%', marginTop: '14px', padding: '10px' }}
+                  >
+                    {isSubmitting ? 'Verifying...' : 'Send Verification OTP 📲'}
+                  </button>
+
+                  <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                    <button
+                      type="button"
+                      onClick={() => switchMode('login')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontSize: '12px',
+                        color: 'var(--color-forest)',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      ← Back to Sign In
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Step 2: Validate OTP & Set New Password */}
+              {forgotStep === 2 && (
+                <form onSubmit={handleForgotVerifyReset}>
+                  <div className="form-group">
+                    <label className="form-label">6-Digit Verification Code</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      className="form-input"
+                      placeholder="••••••"
+                      value={forgotForm.otp}
+                      onChange={(e) => setForgotForm({ ...forgotForm, otp: e.target.value })}
+                      style={{
+                        letterSpacing: '0.25em',
+                        textAlign: 'center',
+                        fontWeight: 700,
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '16px'
+                      }}
+                    />
+                  </div>
+
+                  {forgotOtpInfo && forgotOtpInfo.demo_otp && (
+                    <div
+                      style={{
+                        backgroundColor: '#ECFDF5',
+                        border: '1px solid #A7F3D0',
+                        color: '#065F46',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        marginBottom: '12px'
+                      }}
+                    >
+                      ℹ️ <b>Demo Mode Code:</b> <code>{forgotOtpInfo.demo_otp}</code> (Simulation active).
+                    </div>
+                  )}
+
+                  <div className="form-group">
+                    <label className="form-label">New Password</label>
+                    <PasswordInput
+                      required
+                      minLength={6}
+                      placeholder="Min 6 characters"
+                      value={forgotForm.new_password}
+                      onChange={(e) => setForgotForm({ ...forgotForm, new_password: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Confirm New Password</label>
+                    <PasswordInput
+                      required
+                      minLength={6}
+                      placeholder="Re-type new password"
+                      value={forgotForm.confirm_password}
+                      onChange={(e) => setForgotForm({ ...forgotForm, confirm_password: e.target.value })}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn btn-primary"
+                    style={{ width: '100%', marginTop: '16px', padding: '10px' }}
+                  >
+                    {isSubmitting ? 'Resetting Password...' : 'Save New Password & Log In 🔐'}
+                  </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', fontSize: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep(1)}
+                      style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0 }}
+                    >
+                      ← Re-enter Username
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchMode('login')}
+                      style={{ background: 'none', border: 'none', color: 'var(--color-forest)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                    >
+                      Cancel & Return
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* MODE 3: SIGN UP (NEW BUSINESS OWNER & ADMIN REGISTRATION)        */}
+          {/* ================================================================ */}
+          {mode === 'signup' && (
             <form onSubmit={handleSignup}>
               <div style={{ marginBottom: '14px' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-forest)', margin: 0 }}>
+                <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--color-forest)', margin: 0 }}>
                   Register New Business
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>
@@ -390,11 +659,9 @@ export const AuthView = () => {
                     <label className="form-label">
                       Password <span style={{ color: 'var(--color-terracotta)' }}>*</span>
                     </label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       required
                       minLength={6}
-                      className="form-input"
                       placeholder="Min 6 characters"
                       value={signupForm.password}
                       onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
@@ -428,3 +695,5 @@ export const AuthView = () => {
     </div>
   );
 };
+
+export default AuthView;

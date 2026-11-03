@@ -47,18 +47,41 @@ class CreateStaffRequest(BaseModel):
     email: Optional[str] = ""
     otp: str = Field(..., min_length=4)
 
-def dispatch_otp_sms(phone: str, otp_code: str, business_name: str, settings: dict, admin_user: dict) -> dict:
-    """Send authorization OTP to Admin's registered phone via TextBee or log demo simulation."""
-    msg_body = f"HisabKitab Security: Your authorization OTP to add a new staff member to {business_name} is {otp_code}. Valid for 10 minutes. Do not share with unauthorized persons."
+class ForgotPasswordOtpRequest(BaseModel):
+    username: str = Field(..., min_length=2)
+
+class ForgotPasswordResetRequest(BaseModel):
+    username: str = Field(..., min_length=2)
+    otp: str = Field(..., min_length=4)
+    new_password: str = Field(..., min_length=6)
+
+class AdminResetStaffPasswordRequest(BaseModel):
+    new_password: str = Field(..., min_length=6)
+
+def dispatch_otp_sms(
+    phone: str,
+    otp_code: str,
+    business_name: str,
+    settings: dict,
+    admin_user: dict,
+    custom_message: Optional[str] = None,
+    log_type: str = "STAFF-AUTH-OTP"
+) -> dict:
+    """Send authorization or reset OTP to user's registered phone via TextBee or log demo simulation."""
+    if custom_message:
+        msg_body = custom_message
+    else:
+        msg_body = f"HisabKitab Security: Your authorization OTP to add a new staff member to {business_name} is {otp_code}. Valid for 10 minutes. Do not share with unauthorized persons."
+
     api_key = (settings.get("textbee_api_key") or TEXTBEE_API_KEY or "").strip()
     device_id = (settings.get("textbee_device_id") or TEXTBEE_DEVICE_ID or "").strip()
     demo_mode = False if (api_key and device_id and not TEXTBEE_DEMO_MODE) else settings.get("textbee_demo_mode", TEXTBEE_DEMO_MODE)
     api_url = (settings.get("textbee_api_url") or TEXTBEE_API_URL or "https://api.textbee.dev/api/v1").rstrip('/')
 
     log_entry = {
-        "invoice_number": "STAFF-AUTH-OTP",
+        "invoice_number": log_type,
         "recipient_phone": phone,
-        "customer_name": f"Admin ({admin_user.get('username')})",
+        "customer_name": f"{admin_user.get('full_name', '')} ({admin_user.get('username', 'user')})",
         "message_text": msg_body,
         "status": "OTP_SENT",
         "sent_by": admin_user.get("username", "admin"),
@@ -394,4 +417,148 @@ def delete_staff_account(staff_id: str, admin_user: dict = Depends(require_admin
     return {
         "success": True,
         "message": f"Staff account '{target['username']}' permanently removed."
+    }
+
+@router.post("/staff/{staff_id}/reset-password")
+def admin_reset_staff_password(
+    staff_id: str,
+    data: AdminResetStaffPasswordRequest,
+    admin_user: dict = Depends(require_admin)
+):
+    """Admin-only: Instantly update a staff member's password without OTP."""
+    biz = get_business_for_user(admin_user)
+    biz_id = str(biz.get("_id"))
+
+    try:
+        target = users_col.find_one({"_id": ObjectId(staff_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid staff ID format.")
+
+    if not target or target.get("business_id") != biz_id:
+        raise HTTPException(status_code=404, detail="Staff account not found under your store.")
+
+    if target.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="Admin credentials must be updated via Account Settings or Forgot Password.")
+
+    new_hash = hash_password(data.new_password)
+    users_col.update_one(
+        {"_id": ObjectId(staff_id)},
+        {"$set": {
+            "password_hash": new_hash,
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+
+    return {
+        "success": True,
+        "message": f"Password for staff member '{target['username']}' updated successfully."
+    }
+
+@router.post("/forgot-password/send-otp")
+def forgot_password_send_otp(data: ForgotPasswordOtpRequest):
+    """
+    Public Endpoint: Generates a 6-digit OTP and dispatches it to the user's registered phone
+    (Admin or Staff) for secure self-service password recovery.
+    """
+    clean_username = data.username.strip().lower()
+    user = users_col.find_one({"username": clean_username})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Account with username '{clean_username}' was not found. Please verify your username."
+        )
+
+    # Determine phone number
+    biz = get_business_for_user(user)
+    recipient_phone = (user.get("phone") or biz.get("phone") or "").strip()
+
+    if not recipient_phone:
+        if user.get("role") == "admin":
+            detail_msg = "No registered mobile number found for this Admin account or business. Please configure mobile in business settings."
+        else:
+            detail_msg = "No phone number is registered for this staff account. Please contact your store Administrator to reset your password directly from the Staff Management portal."
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail_msg
+        )
+
+    # Generate 6-digit OTP
+    otp_code = f"{random.randint(100000, 999999)}"
+
+    # Invalidate any old pending forgot-password OTPs for this username
+    otp_verifications_col.delete_many({"username": clean_username, "purpose": "forgot_password"})
+
+    # Store OTP
+    otp_verifications_col.insert_one({
+        "username": clean_username,
+        "phone": recipient_phone,
+        "otp": otp_code,
+        "purpose": "forgot_password",
+        "created_at": datetime.now(timezone.utc)
+    })
+
+    # Dispatch SMS
+    b_name = biz.get("business_name", "HisabKitab")
+    custom_msg = f"HisabKitab Security: Your password reset verification code for {b_name} is {otp_code}. Valid for 10 minutes. Do not share with anyone."
+    dispatch_res = dispatch_otp_sms(
+        recipient_phone,
+        otp_code,
+        b_name,
+        biz,
+        user,
+        custom_message=custom_msg,
+        log_type="PWD-RESET-OTP"
+    )
+
+    phone_hint = recipient_phone[-4:] if len(recipient_phone) >= 4 else recipient_phone
+    return {
+        "success": True,
+        "message": f"Verification code sent to registered mobile ending in •••• {phone_hint}.",
+        "phone_hint": phone_hint,
+        "demo_otp": dispatch_res.get("otp") if dispatch_res.get("mode") == "demo" else None
+    }
+
+@router.post("/forgot-password/verify-reset")
+def forgot_password_verify_reset(data: ForgotPasswordResetRequest):
+    """
+    Public Endpoint: Validates 6-digit OTP and updates the user's password.
+    """
+    clean_username = data.username.strip().lower()
+    clean_otp = data.otp.strip()
+
+    otp_record = otp_verifications_col.find_one({
+        "username": clean_username,
+        "purpose": "forgot_password",
+        "otp": clean_otp
+    })
+
+    if not otp_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification OTP. Please click 'Send OTP' to request a new code."
+        )
+
+    user = users_col.find_one({"username": clean_username})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User account not found."
+        )
+
+    # Hash new password and update
+    new_hash = hash_password(data.new_password)
+    users_col.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "password_hash": new_hash,
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+
+    # Delete consumed OTP
+    otp_verifications_col.delete_one({"_id": otp_record["_id"]})
+
+    return {
+        "success": True,
+        "message": "Password updated successfully! You can now log in with your new password."
     }

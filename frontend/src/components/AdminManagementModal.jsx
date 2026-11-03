@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { STATES_LIST, UT_LIST } from '../constants/states';
+import { PasswordInput } from './PasswordInput';
 
 export const AdminManagementModal = ({ isOpen, onClose }) => {
   const { business, refreshBusiness, apiFetch } = useAuth();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState('staff'); // 'staff', 'business', 'sms'
+  const [activeTab, setActiveTab] = useState('staff'); // 'staff' or 'business'
 
   // ==========================================
   // STAFF MANAGEMENT STATE
@@ -30,6 +31,11 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpInfo, setOtpInfo] = useState(null);
   const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
+
+  // Direct Staff Password Reset Modal State
+  const [resetTargetStaff, setResetTargetStaff] = useState(null);
+  const [newStaffPassword, setNewStaffPassword] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // ==========================================
   // BUSINESS SETTINGS STATE
@@ -159,6 +165,35 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Admin Direct Reset Staff Password
+  const handleResetStaffPassword = async (e) => {
+    e.preventDefault();
+    if (!resetTargetStaff) return;
+    if (!newStaffPassword || newStaffPassword.length < 6) {
+      showToast('New password must be at least 6 characters long.', 'warning');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const res = await apiFetch(`/api/auth/staff/${resetTargetStaff.id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ new_password: newStaffPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to reset staff password.');
+      }
+      showToast(data.message, 'success');
+      setResetTargetStaff(null);
+      setNewStaffPassword('');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
   // Toggle Staff Active/Deactivated
   const handleToggleStatus = async (staffId, currentStatus, name) => {
     try {
@@ -202,8 +237,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     setIsSavingBiz(true);
     try {
       const payload = { ...bizForm };
-      // If masked key, don't overwrite
-      if (payload.textbee_api_key.startsWith('•')) {
+      if (payload.textbee_api_key && payload.textbee_api_key.startsWith('•')) {
         delete payload.textbee_api_key;
       }
       const res = await apiFetch('/api/settings', {
@@ -214,7 +248,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
       if (!res.ok) {
         throw new Error(data.detail || 'Failed to update business settings.');
       }
-      showToast('Business & SMS settings updated successfully!', 'success');
+      showToast('Business profile updated successfully!', 'success');
       await refreshBusiness();
     } catch (err) {
       showToast(err.message, 'error');
@@ -224,18 +258,21 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="modal-backdrop" style={{ zIndex: 1200 }}>
+    <div className="modal-backdrop" style={{ zIndex: 1200, backgroundColor: 'rgba(20, 32, 26, 0.65)' }}>
+      {/* Main Opaque Sheet */}
       <div
-        className="modal-content"
+        className="modal-sheet modal-sheet-lg"
         style={{
-          maxWidth: '720px',
+          maxWidth: '780px',
           width: '95%',
-          maxHeight: '90vh',
+          maxHeight: '88vh',
           display: 'flex',
           flexDirection: 'column',
-          padding: 0,
-          overflow: 'hidden',
-          borderRadius: '12px'
+          backgroundColor: '#ffffff',
+          borderRadius: '14px',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.4)',
+          border: '1px solid var(--color-stone)',
+          overflow: 'hidden'
         }}
       >
         {/* Modal Header */}
@@ -243,57 +280,63 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
           style={{
             backgroundColor: 'var(--color-forest)',
             color: '#ffffff',
-            padding: '16px 20px',
+            padding: '16px 24px',
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            alignItems: 'center',
+            borderBottom: '1px solid rgba(255,255,255,0.1)'
           }}
         >
           <div>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#ffffff' }}>
+            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#ffffff' }}>
               ⚙️ Business & Staff Security Center
             </h3>
-            <p style={{ margin: 0, fontSize: '11.5px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>
+            <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.75)', marginTop: '2px' }}>
               {business?.business_name || 'My Business'} • Owner Controls
             </p>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close dialog"
             style={{
               background: 'transparent',
               border: 'none',
               color: '#ffffff',
-              fontSize: '18px',
+              fontSize: '20px',
               cursor: 'pointer',
-              lineHeight: 1
+              lineHeight: 1,
+              padding: '4px 8px',
+              borderRadius: '6px'
             }}
           >
             ✕
           </button>
         </div>
 
-        {/* Tab Navigation Pill Bar */}
+        {/* Tab Navigation Pill Bar (TextBee Tab Removed as Requested) */}
         <div
           style={{
             display: 'flex',
             borderBottom: '1px solid var(--color-stone-light)',
-            backgroundColor: 'var(--color-ivory)',
-            padding: '8px 16px 0 16px',
-            gap: '8px'
+            backgroundColor: '#F8F6F0',
+            padding: '10px 20px 0 20px',
+            gap: '10px'
           }}
         >
           <button
             type="button"
             onClick={() => setActiveTab('staff')}
             style={{
-              padding: '8px 16px',
+              padding: '9px 18px',
               border: 'none',
               borderBottom: activeTab === 'staff' ? '3px solid var(--color-copper)' : '3px solid transparent',
-              background: 'transparent',
-              color: activeTab === 'staff' ? 'var(--color-forest)' : 'var(--color-charcoal-muted)',
+              background: activeTab === 'staff' ? '#ffffff' : 'transparent',
+              color: activeTab === 'staff' ? 'var(--color-forest)' : '#64748B',
               fontWeight: activeTab === 'staff' ? 700 : 500,
               fontSize: '13px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              borderRadius: activeTab === 'staff' ? '6px 6px 0 0' : '0',
+              boxShadow: activeTab === 'staff' ? '0 -2px 6px rgba(0,0,0,0.03)' : 'none'
             }}
           >
             👥 Staff & Roles (2-Step OTP)
@@ -303,39 +346,24 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
             type="button"
             onClick={() => setActiveTab('business')}
             style={{
-              padding: '8px 16px',
+              padding: '9px 18px',
               border: 'none',
               borderBottom: activeTab === 'business' ? '3px solid var(--color-copper)' : '3px solid transparent',
-              background: 'transparent',
-              color: activeTab === 'business' ? 'var(--color-forest)' : 'var(--color-charcoal-muted)',
+              background: activeTab === 'business' ? '#ffffff' : 'transparent',
+              color: activeTab === 'business' ? 'var(--color-forest)' : '#64748B',
               fontWeight: activeTab === 'business' ? 700 : 500,
               fontSize: '13px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              borderRadius: activeTab === 'business' ? '6px 6px 0 0' : '0',
+              boxShadow: activeTab === 'business' ? '0 -2px 6px rgba(0,0,0,0.03)' : 'none'
             }}
           >
             🏢 Business & GST Profile
           </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('sms')}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderBottom: activeTab === 'sms' ? '3px solid var(--color-copper)' : '3px solid transparent',
-              background: 'transparent',
-              color: activeTab === 'sms' ? 'var(--color-forest)' : 'var(--color-charcoal-muted)',
-              fontWeight: activeTab === 'sms' ? 700 : 500,
-              fontSize: '13px',
-              cursor: 'pointer'
-            }}
-          >
-            📲 TextBee SMS Gateway
-          </button>
         </div>
 
-        {/* Modal Scrollable Body */}
-        <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+        {/* Modal Scrollable Body - Completely Opaque Solid White */}
+        <div style={{ padding: '22px 24px', overflowY: 'auto', flex: 1, backgroundColor: '#ffffff' }}>
           {/* ================================================================ */}
           {/* TAB 1: STAFF & ROLE MANAGEMENT WITH 2-STEP OTP */}
           {/* ================================================================ */}
@@ -343,11 +371,11 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--color-forest)' }}>
-                    Staff Member Authorization
+                  <h4 style={{ margin: 0, fontSize: '15.5px', fontWeight: 700, color: 'var(--color-forest)' }}>
+                    Authorized Store Staff
                   </h4>
-                  <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '2px' }}>
-                    Only verified staff authorized via SMS OTP sent to your phone can access your store ledger.
+                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                    Staff are authorized via SMS OTP sent to your phone. Cashiers can only access invoicing; Storekeepers can manage stock.
                   </p>
                 </div>
 
@@ -372,26 +400,27 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                   style={{
                     backgroundColor: '#F8FAFC',
                     border: '1px solid #CBD5E1',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    marginBottom: '20px'
+                    borderRadius: '10px',
+                    padding: '18px',
+                    marginBottom: '22px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-forest)' }}>
-                      🛡️ 2-Step Staff Member Registration
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--color-forest)' }}>
+                      🛡️ 2-Step Employee Onboarding
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowAddForm(false)}
                       style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', fontSize: '12px' }}
                     >
-                      Cancel
+                      ✕ Cancel
                     </button>
                   </div>
 
                   <form onSubmit={handleCreateStaff}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
                       <div className="form-group">
                         <label className="form-label">Employee Full Name *</label>
                         <input
@@ -417,7 +446,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div className="form-group">
                         <label className="form-label">Login Username *</label>
                         <input
@@ -432,14 +461,36 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
 
                       <div className="form-group">
                         <label className="form-label">Temporary Password *</label>
-                        <input
-                          type="password"
+                        <PasswordInput
                           required
                           minLength={6}
-                          className="form-input"
                           placeholder="Min 6 characters"
                           value={staffForm.password}
                           onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Employee Phone (Optional, for Forgot Password)</label>
+                        <input
+                          type="tel"
+                          className="form-input"
+                          placeholder="e.g. 9876543210"
+                          value={staffForm.phone}
+                          onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Employee Email (Optional)</label>
+                        <input
+                          type="email"
+                          className="form-input"
+                          placeholder="staff@store.com"
+                          value={staffForm.email}
+                          onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
                         />
                       </div>
                     </div>
@@ -449,16 +500,16 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                       style={{
                         backgroundColor: '#EFF6FF',
                         border: '1px solid #BFDBFE',
-                        borderRadius: '6px',
-                        padding: '12px',
-                        marginTop: '10px'
+                        borderRadius: '8px',
+                        padding: '14px',
+                        marginTop: '12px'
                       }}
                     >
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E40AF', marginBottom: '6px' }}>
-                        Step 1: Admin SMS OTP Authorization
+                      <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E40AF', marginBottom: '4px' }}>
+                        Admin Authorization Code
                       </div>
-                      <p style={{ fontSize: '11px', color: '#3B82F6', margin: 0, marginBottom: '10px' }}>
-                        To prevent unauthorized employee creation, TextBee will send a 6-digit confirmation code to the Admin's registered phone ({business?.phone || 'Configured Phone'}).
+                      <p style={{ fontSize: '11.5px', color: '#3B82F6', margin: 0, marginBottom: '10px' }}>
+                        A 6-digit confirmation code will be sent to the Admin's registered mobile ({business?.phone || 'Configured Phone'}) to approve this staff account.
                       </p>
 
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
@@ -484,7 +535,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                 value={staffForm.otp}
                                 onChange={(e) => setStaffForm({ ...staffForm, otp: e.target.value })}
                                 style={{
-                                  letterSpacing: '0.2em',
+                                  letterSpacing: '0.25em',
                                   fontWeight: 700,
                                   fontFamily: 'var(--font-mono)',
                                   textAlign: 'center',
@@ -506,11 +557,64 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
 
                       {/* Demo OTP Helper if in simulation mode */}
                       {otpInfo && otpInfo.demo_otp && (
-                        <div style={{ marginTop: '8px', fontSize: '11px', color: '#047857', backgroundColor: '#ECFDF5', padding: '6px 8px', borderRadius: '4px' }}>
-                          ℹ️ <b>Demo Mode OTP:</b> <code>{otpInfo.demo_otp}</code> (Type this into the box above to verify).
+                        <div style={{ marginTop: '10px', fontSize: '11px', color: '#047857', backgroundColor: '#ECFDF5', padding: '6px 10px', borderRadius: '4px', border: '1px solid #A7F3D0' }}>
+                          ℹ️ <b>Demo Code:</b> <code>{otpInfo.demo_otp}</code> (Simulation active).
                         </div>
                       )}
                     </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Direct Staff Password Reset Modal / Dialog */}
+              {resetTargetStaff && (
+                <div
+                  style={{
+                    backgroundColor: '#FEF3C7',
+                    border: '1px solid #FCD34D',
+                    borderRadius: '10px',
+                    padding: '16px',
+                    marginBottom: '20px',
+                    boxShadow: '0 4px 12px rgba(180, 83, 9, 0.08)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#92400E' }}>
+                      🔑 Reset Password for @{resetTargetStaff.username} ({resetTargetStaff.full_name})
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetTargetStaff(null);
+                        setNewStaffPassword('');
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#92400E', cursor: 'pointer', fontSize: '13px' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '11.5px', color: '#78350F', margin: '0 0 10px 0' }}>
+                    As the Store Admin, you can set a brand new password directly for this employee.
+                  </p>
+
+                  <form onSubmit={handleResetStaffPassword} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}>
+                      <PasswordInput
+                        required
+                        minLength={6}
+                        placeholder="Enter new 6+ char password"
+                        value={newStaffPassword}
+                        onChange={(e) => setNewStaffPassword(e.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isResettingPassword}
+                      className="btn btn-primary btn-sm"
+                      style={{ whiteSpace: 'nowrap', backgroundColor: 'var(--color-copper)' }}
+                    >
+                      {isResettingPassword ? 'Updating...' : 'Update Password'}
+                    </button>
                   </form>
                 </div>
               )}
@@ -521,39 +625,39 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                   Loading staff roster from MongoDB...
                 </div>
               ) : staffList.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px', backgroundColor: 'var(--color-ivory)', borderRadius: '8px', color: 'var(--color-muted)' }}>
+                <div style={{ textAlign: 'center', padding: '30px', backgroundColor: '#F8F6F0', borderRadius: '8px', color: 'var(--color-muted)' }}>
                   No staff members currently registered under this business. Click <b>"+ Add Staff Member"</b> above to grant employee access.
                 </div>
               ) : (
-                <div className="table-container">
-                  <table className="table">
-                    <thead>
+                <div style={{ border: '1px solid var(--color-stone)', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#ffffff' }}>
+                  <table className="table" style={{ margin: 0, width: '100%', borderCollapse: 'collapse' }}>
+                    <thead style={{ backgroundColor: '#F8F6F0' }}>
                       <tr>
-                        <th>Employee</th>
-                        <th>Username</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Employee</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Username</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Role</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Status</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {staffList.map((st) => {
                         const isActive = st.is_active !== false;
                         return (
-                          <tr key={st.id}>
-                            <td>
+                          <tr key={st.id} style={{ borderBottom: '1px solid #F1EFE9', backgroundColor: '#ffffff' }}>
+                            <td style={{ padding: '10px 14px' }}>
                               <div style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{st.full_name}</div>
                               {st.phone && <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>Tel: {st.phone}</div>}
                             </td>
-                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                            <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#334155' }}>
                               @{st.username}
                             </td>
-                            <td>
+                            <td style={{ padding: '10px 14px' }}>
                               <span
                                 style={{
                                   fontSize: '11px',
                                   fontWeight: 600,
-                                  padding: '2px 8px',
+                                  padding: '3px 8px',
                                   borderRadius: '4px',
                                   backgroundColor: st.role === 'inventory_manager' ? '#FEF3C7' : '#E0E7FF',
                                   color: st.role === 'inventory_manager' ? '#92400E' : '#3730A3'
@@ -562,12 +666,12 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                 {st.role === 'inventory_manager' ? 'Storekeeper' : 'Billing Cashier'}
                               </span>
                             </td>
-                            <td>
+                            <td style={{ padding: '10px 14px' }}>
                               <span
                                 style={{
                                   fontSize: '11px',
                                   fontWeight: 700,
-                                  padding: '2px 8px',
+                                  padding: '3px 8px',
                                   borderRadius: '4px',
                                   backgroundColor: isActive ? '#DCFCE7' : '#FEE2E2',
                                   color: isActive ? '#15803D' : '#B91C1C'
@@ -576,8 +680,29 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                 {isActive ? '● Active' : '○ Deactivated'}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                            <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                {/* Reset Staff Password Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setResetTargetStaff(st);
+                                    setNewStaffPassword('');
+                                  }}
+                                  className="btn btn-ghost btn-sm"
+                                  style={{
+                                    fontSize: '11px',
+                                    color: '#B45309',
+                                    padding: '3px 8px',
+                                    backgroundColor: '#FEF3C7',
+                                    border: '1px solid #FDE68A'
+                                  }}
+                                  title="Reset this employee's password directly"
+                                >
+                                  🔑 Reset Pwd
+                                </button>
+
+                                {/* Deactivate / Reactivate Access */}
                                 <button
                                   type="button"
                                   onClick={() => handleToggleStatus(st.id, isActive, st.full_name)}
@@ -585,18 +710,21 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                   style={{
                                     fontSize: '11px',
                                     color: isActive ? '#DC2626' : '#16A34A',
-                                    padding: '3px 8px'
+                                    padding: '3px 8px',
+                                    backgroundColor: isActive ? '#FEE2E2' : '#DCFCE7'
                                   }}
-                                  title={isActive ? 'Deactivate access' : 'Reactivate access'}
+                                  title={isActive ? 'Deactivate staff login access' : 'Reactivate staff login access'}
                                 >
                                   {isActive ? 'Deactivate' : 'Activate'}
                                 </button>
+
+                                {/* Delete Staff Button */}
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteStaff(st.id, st.full_name)}
                                   className="btn btn-ghost btn-sm"
-                                  style={{ fontSize: '11px', color: '#94A3B8', padding: '3px 6px' }}
-                                  title="Permanently remove"
+                                  style={{ fontSize: '12px', color: '#94A3B8', padding: '3px 6px' }}
+                                  title="Permanently remove staff"
                                 >
                                   🗑️
                                 </button>
@@ -713,7 +841,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">UPI ID (for bill payment)</label>
+                  <label className="form-label">UPI ID (for bill QR)</label>
                   <input
                     type="text"
                     className="form-input"
@@ -756,68 +884,9 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                <button type="submit" disabled={isSavingBiz} className="btn btn-primary">
-                  {isSavingBiz ? 'Saving Settings...' : 'Save Profile Changes'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* ================================================================ */}
-          {/* TAB 3: TEXTBEE SMS GATEWAY SETTINGS */}
-          {/* ================================================================ */}
-          {activeTab === 'sms' && (
-            <form onSubmit={handleSaveBizSettings}>
-              <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#166534', marginBottom: '4px' }}>
-                  📲 TextBee Android Gateway Connection
-                </div>
-                <div style={{ fontSize: '12px', color: '#15803D', lineHeight: 1.4 }}>
-                  Connect your Android phone with the TextBee app to send real SMS invoice receipts and staff verification OTPs automatically from your mobile number.
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="form-group">
-                  <label className="form-label">TextBee Device ID</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Device ID from Android App"
-                    value={bizForm.textbee_device_id}
-                    onChange={(e) => setBizForm({ ...bizForm, textbee_device_id: e.target.value })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">TextBee API Key</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    placeholder="txb_••••••••"
-                    value={bizForm.textbee_api_key}
-                    onChange={(e) => setBizForm({ ...bizForm, textbee_api_key: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '12px' }}>
-                <input
-                  type="checkbox"
-                  id="modal-textbee-demo"
-                  checked={bizForm.textbee_demo_mode}
-                  onChange={(e) => setBizForm({ ...bizForm, textbee_demo_mode: e.target.checked })}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                />
-                <label htmlFor="modal-textbee-demo" style={{ fontSize: '12.5px', color: 'var(--color-charcoal)', cursor: 'pointer' }}>
-                  <b>Enable Safe Demo / Simulation Mode:</b> Logs SMS and OTPs safely into MongoDB without consuming actual SIM card SMS credits.
-                </label>
-              </div>
-
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
                 <button type="submit" disabled={isSavingBiz} className="btn btn-primary">
-                  {isSavingBiz ? 'Updating Gateway...' : 'Save SMS Configuration'}
+                  {isSavingBiz ? 'Saving Settings...' : 'Save Profile Changes'}
                 </button>
               </div>
             </form>
@@ -827,3 +896,5 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     </div>
   );
 };
+
+export default AdminManagementModal;
