@@ -88,6 +88,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('hisabkitab_token');
       setToken(data.token);
       setUser(data.user);
+      if (data.business) {
+        setBusiness(data.business);
+      }
       showToast(`Welcome back, ${data.user.full_name}!`, 'success');
       return true;
     } catch (err) {
@@ -111,6 +114,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('hisabkitab_token');
       setToken(data.token);
       setUser(data.user);
+      if (data.business) {
+        setBusiness(data.business);
+      }
       showToast(`Welcome to HisabKitab, ${data.user.full_name}! Your account is ready.`, 'success');
       return true;
     } catch (err) {

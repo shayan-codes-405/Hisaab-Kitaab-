@@ -68,3 +68,30 @@ def serialize_doc(doc):
                 new_doc[k] = v
         return new_doc
     return doc
+
+def get_business_for_user(user: dict) -> dict:
+    """
+    Retrieve the specific business settings document associated with the user.
+    Checks user['business_id'] first, then user['business_name'],
+    falling back to the first available business document in settings_col.
+    """
+    if not user:
+        return settings_col.find_one({}) or {}
+
+    b_id = user.get("business_id")
+    if b_id:
+        try:
+            b = settings_col.find_one({"_id": ObjectId(b_id)})
+            if b:
+                return b
+        except Exception:
+            pass
+
+    b_name = user.get("business_name")
+    if b_name:
+        b = settings_col.find_one({"business_name": b_name})
+        if b:
+            return b
+
+    # Graceful fallback to first business or empty dict
+    return settings_col.find_one({}) or {}

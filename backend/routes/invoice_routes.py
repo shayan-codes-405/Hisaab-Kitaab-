@@ -10,7 +10,8 @@ from database import (
     products_col,
     stock_movements_col,
     settings_col,
-    serialize_doc
+    serialize_doc,
+    get_business_for_user
 )
 from auth import require_staff_or_admin, require_admin
 
@@ -227,11 +228,12 @@ def calculate_invoice_totals(items: List[InvoiceItemSchema], seller_state: str, 
         "tax_breakdown": list(tax_breakdown.values())
     }
 
-def generate_next_invoice_number():
-    """Generate sequential unique invoice number atomically."""
-    settings = settings_col.find_one({}) or {}
-    prefix = settings.get("invoice_prefix", "INV").upper()
-    next_num = settings.get("next_invoice_number", 1)
+def generate_next_invoice_number(business: dict = None):
+    """Generate sequential unique invoice number atomically for the given business."""
+    if not business:
+        business = settings_col.find_one({}) or {}
+    prefix = business.get("invoice_prefix", "INV").upper()
+    next_num = business.get("next_invoice_number", 1)
     current_year = datetime.now().year
     
     # Try finding an unused number
@@ -240,13 +242,17 @@ def generate_next_invoice_number():
         next_num += 1
         candidate = f"{prefix}-{current_year}-{str(next_num).zfill(4)}"
         
-    settings_col.update_one({}, {"$set": {"next_invoice_number": next_num + 1}}, upsert=True)
+    b_id = business.get("_id")
+    if b_id:
+        settings_col.update_one({"_id": b_id}, {"$set": {"next_invoice_number": next_num + 1}})
+    else:
+        settings_col.update_one({}, {"$set": {"next_invoice_number": next_num + 1}}, upsert=True)
     return candidate
 
 @router.post("/calculate")
 def preview_calculation(data: CalculateInvoiceRequest, user: dict = Depends(require_staff_or_admin)):
     """Dry-run calculation for live interactive invoice preview without strict validation hurdles."""
-    settings = settings_col.find_one({}) or {}
+    settings = get_business_for_user(user)
     seller_state = settings.get("state", "Maharashtra")
     customer_state = data.customer.state if (data.customer and data.customer.state) else seller_state
 
@@ -342,7 +348,7 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
     Validate stock, calculate GST, deduct stock atomically, and save invoice.
     Prevents negative stock and ensures data snapshot consistency.
     """
-    settings = settings_col.find_one({}) or {}
+    settings = get_business_for_user(user)
     seller_state = settings.get("state", "Maharashtra")
 
     # 1. Validate Stock Availability Before Modification
@@ -382,7 +388,7 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
         inv_disc_val=data.invoice_level_discount_value
     )
 
-    inv_number = generate_next_invoice_number()
+    inv_number = generate_next_invoice_number(settings)
 
     # Determine amount paid
     final_amount = calc["final_payable_amount"]
@@ -396,6 +402,7 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
 
     invoice_doc = {
         "invoice_number": inv_number,
+        "business_id": str(settings.get("_id")) if settings.get("_id") else None,
         "invoice_date": data.invoice_date or datetime.now().strftime("%Y-%m-%d"),
         "invoice_time": data.invoice_time or datetime.now().strftime("%I:%M %p"),
         "due_date": data.due_date or "",
@@ -530,7 +537,7 @@ def update_invoice(
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice record not found.")
 
-    settings = settings_col.find_one({}) or {}
+    settings = get_business_for_user(user)
     seller_state = settings.get("state", "Maharashtra")
 
     # Calculate stock differences to avoid duplicate deductions

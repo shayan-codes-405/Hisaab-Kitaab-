@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 
-from database import settings_col, serialize_doc
+from database import settings_col, users_col, serialize_doc, get_business_for_user
 from auth import require_admin, require_staff_or_admin
 from config import (
     TEXTBEE_API_KEY as ENV_TEXTBEE_KEY,
@@ -35,8 +36,8 @@ class BusinessSettingsUpdate(BaseModel):
 
 @router.get("")
 def get_business_settings(user: dict = Depends(require_staff_or_admin)):
-    """Fetch business details and GST configurations."""
-    doc = settings_col.find_one({})
+    """Fetch business details and GST configurations for the authenticated user's business."""
+    doc = get_business_for_user(user)
     if not doc:
         # Create default from environment if not exists
         default_doc = {
@@ -62,18 +63,6 @@ def get_business_settings(user: dict = Depends(require_staff_or_admin)):
         res = settings_col.insert_one(default_doc)
         default_doc["_id"] = res.inserted_id
         doc = default_doc
-    else:
-        # Sync environment overrides if present
-        sync_updates = {}
-        if ENV_TEXTBEE_KEY and doc.get("textbee_api_key") != ENV_TEXTBEE_KEY:
-            sync_updates["textbee_api_key"] = ENV_TEXTBEE_KEY
-        if ENV_TEXTBEE_DEV and doc.get("textbee_device_id") != ENV_TEXTBEE_DEV:
-            sync_updates["textbee_device_id"] = ENV_TEXTBEE_DEV
-        if ENV_TEXTBEE_DEMO is not None and doc.get("textbee_demo_mode") != ENV_TEXTBEE_DEMO:
-            sync_updates["textbee_demo_mode"] = ENV_TEXTBEE_DEMO
-        if sync_updates:
-            settings_col.update_one({"_id": doc["_id"]}, {"$set": sync_updates})
-            doc.update(sync_updates)
 
     data = serialize_doc(doc)
     # Never expose full raw API key to regular staff or in logs
@@ -93,8 +82,20 @@ def get_business_settings(user: dict = Depends(require_staff_or_admin)):
 @router.put("")
 def update_business_settings(payload: BusinessSettingsUpdate, admin_user: dict = Depends(require_admin)):
     """Admin-only: Update business details, GSTIN, bank profile and TextBee SMS credentials."""
-    existing = settings_col.find_one({}) or {}
-    
+    b_id = admin_user.get("business_id")
+    target_id = None
+    if b_id:
+        try:
+            target_id = ObjectId(b_id)
+        except Exception:
+            pass
+
+    if target_id:
+        existing = settings_col.find_one({"_id": target_id})
+    else:
+        existing = get_business_for_user(admin_user)
+        target_id = existing.get("_id") if existing else None
+
     update_data = {
         "business_name": payload.business_name.strip(),
         "gstin": payload.gstin.strip().upper(),
@@ -123,5 +124,19 @@ def update_business_settings(payload: BusinessSettingsUpdate, admin_user: dict =
     if payload.textbee_api_key is not None and not payload.textbee_api_key.startswith("•"):
         update_data["textbee_api_key"] = payload.textbee_api_key.strip()
 
-    settings_col.update_one({}, {"$set": update_data}, upsert=True)
-    return {"message": "Business settings and invoice configurations updated successfully."}
+    if target_id:
+        settings_col.update_one({"_id": target_id}, {"$set": update_data})
+        # Keep business_name synchronized in user records
+        users_col.update_many({"business_id": str(target_id)}, {"$set": {"business_name": payload.business_name.strip()}})
+    else:
+        res = settings_col.insert_one(update_data)
+        target_id = res.inserted_id
+        admin_uid = admin_user.get("id") or admin_user.get("_id")
+        if admin_uid:
+            users_col.update_one({"_id": ObjectId(admin_uid)}, {"$set": {"business_id": str(target_id), "business_name": payload.business_name.strip()}})
+
+    updated_doc = settings_col.find_one({"_id": target_id})
+    return {
+        "message": "Business profile updated successfully.",
+        "settings": serialize_doc(updated_doc)
+    }

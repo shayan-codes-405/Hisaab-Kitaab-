@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-from database import invoices_col, settings_col, sms_logs_col, serialize_doc
+from database import invoices_col, settings_col, sms_logs_col, serialize_doc, get_business_for_user
 from auth import require_staff_or_admin
 from config import TEXTBEE_API_KEY, TEXTBEE_DEVICE_ID, TEXTBEE_API_URL, TEXTBEE_DEMO_MODE
 
@@ -92,7 +92,7 @@ def format_invoice_sms_breakdown(inv: dict, business_name: str) -> str:
 @router.get("/status")
 def get_sms_gateway_status(user: dict = Depends(require_staff_or_admin)):
     """Check active TextBee configuration and readiness."""
-    settings = settings_col.find_one({}) or {}
+    settings = get_business_for_user(user)
     api_key = (settings.get("textbee_api_key") or TEXTBEE_API_KEY or "").strip()
     device_id = (settings.get("textbee_device_id") or TEXTBEE_DEVICE_ID or "").strip()
     demo_mode = False if (api_key and device_id and not TEXTBEE_DEMO_MODE) else settings.get("textbee_demo_mode", TEXTBEE_DEMO_MODE)
@@ -128,7 +128,7 @@ def send_invoice_sms(data: SendInvoiceSMSRequest, user: dict = Depends(require_s
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice record not found.")
 
-    settings = settings_col.find_one({}) or {}
+    settings = get_business_for_user(user)
     api_key = (settings.get("textbee_api_key") or TEXTBEE_API_KEY or "").strip()
     device_id = (settings.get("textbee_device_id") or TEXTBEE_DEVICE_ID or "").strip()
     demo_mode = False if (api_key and device_id and not TEXTBEE_DEMO_MODE) else settings.get("textbee_demo_mode", TEXTBEE_DEMO_MODE)

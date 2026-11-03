@@ -20,7 +20,7 @@ export const printInvoiceViaIframe = (inv, seller) => {
 
   const doc = iframe.contentWindow.document;
 
-  const bName = seller?.business_name || inv.seller_snapshot?.business_name || 'Akhtar Enterprises';
+  const bName = seller?.business_name || inv.seller_snapshot?.business_name || 'My Business';
   const bAddr = seller?.address || inv.seller_snapshot?.address || '';
   const bGstin = seller?.gstin || inv.seller_snapshot?.gstin || '';
   const bPhone = seller?.phone || inv.seller_snapshot?.phone || '';
@@ -931,7 +931,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
 
   const generateSMSMessageForInvoice = (inv) => {
     if (!inv) return '';
-    const bName = business?.business_name || inv.seller_snapshot?.business_name || 'Akhtar Enterprises';
+    const bName = business?.business_name || inv.seller_snapshot?.business_name || 'My Business';
     const cName = inv.customer?.name || 'Customer';
     const itemsList = (inv.items || [])
       .map((it) => `- ${it.name} (${it.quantity} ${it.unit || 'Pcs'} @ Rs.${Number(it.unit_price || 0).toFixed(2)}) = Rs.${Number(it.line_total || 0).toFixed(2)}`)
@@ -2109,7 +2109,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #243C32', paddingBottom: '12px', marginBottom: '16px' }}>
             <div>
               <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#243C32', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
-                {printInvoice.seller_snapshot?.business_name || business?.business_name || 'Akhtar Enterprises'}
+                {printInvoice.seller_snapshot?.business_name || business?.business_name || 'My Business'}
               </h2>
               <div style={{ fontSize: '11.5px', color: '#444444', marginTop: '3px' }}>
                 {printInvoice.seller_snapshot?.address || business?.address || 'Main Market Road'}
@@ -2310,7 +2310,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
 
             <div style={{ textAlign: 'center', minWidth: '180px' }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: '#243C32' }}>
-                For {printInvoice.seller_snapshot?.business_name || business?.business_name || 'Akhtar Enterprises'}
+                For {printInvoice.seller_snapshot?.business_name || business?.business_name || 'My Business'}
               </div>
               <div style={{ height: '40px' }}></div>
               <div style={{ borderTop: '1px solid #333333', fontSize: '11px', fontWeight: 600, paddingTop: '3px' }}>
