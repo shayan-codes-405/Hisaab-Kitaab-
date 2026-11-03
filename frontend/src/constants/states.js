@@ -39,9 +39,9 @@ export const INDIAN_STATES = [
   { code: '35', name: 'Andaman and Nicobar Islands', type: 'UT' },
   { code: '36', name: 'Telangana', type: 'State' },
   { code: '37', name: 'Andhra Pradesh (New)', type: 'State' },
-  { code: '38', name: 'Ladakh', type: 'UT' },
-  { code: '97', name: 'Other Territory', type: 'Other' },
+  { code: '38', name: 'Ladakh', type: 'UT' }
 ];
 
 export const STATES_LIST = INDIAN_STATES.filter((s) => s.type === 'State');
 export const UT_LIST = INDIAN_STATES.filter((s) => s.type === 'UT');
+

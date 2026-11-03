@@ -9,7 +9,6 @@ export const AuthView = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableBusinesses, setAvailableBusinesses] = useState([]);
   const [loadingBusinesses, setLoadingBusinesses] = useState(false);
-  const [isCustomState, setIsCustomState] = useState(false);
 
   // Blank initial forms
   const emptyLogin = {
@@ -397,75 +396,31 @@ export const AuthView = () => {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
                     <div className="form-group">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <label className="form-label" style={{ margin: 0 }}>
-                          Place of Business (State) <span style={{ color: 'var(--color-terracotta)' }}>*</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const nextState = !isCustomState;
-                            setIsCustomState(nextState);
-                            if (!nextState && !signupForm.state) {
-                              setSignupForm({ ...signupForm, state: 'Maharashtra' });
-                            }
-                          }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--color-copper)',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            padding: 0,
-                            textDecoration: 'underline'
-                          }}
-                        >
-                          {isCustomState ? '← Pick from 36 States/UTs' : '✍️ Custom state name'}
-                        </button>
-                      </div>
-
-                      {isCustomState ? (
-                        <input
-                          type="text"
-                          required
-                          className="form-input"
-                          placeholder="Type state or territory name"
-                          value={signupForm.state}
-                          onChange={(e) => setSignupForm({ ...signupForm, state: e.target.value })}
-                        />
-                      ) : (
-                        <select
-                          className="form-select"
-                          required
-                          value={signupForm.state}
-                          onChange={(e) => {
-                            if (e.target.value === '__custom__') {
-                              setIsCustomState(true);
-                              setSignupForm({ ...signupForm, state: '' });
-                            } else {
-                              setSignupForm({ ...signupForm, state: e.target.value });
-                            }
-                          }}
-                        >
-                          <option value="">-- Select State or UT --</option>
-                          <optgroup label="States (28)">
-                            {STATES_LIST.map((s) => (
-                              <option key={s.code} value={s.name}>
-                                {s.name} ({s.code})
-                              </option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Union Territories (8)">
-                            {UT_LIST.map((u) => (
-                              <option key={u.code} value={u.name}>
-                                {u.name} ({u.code})
-                              </option>
-                            ))}
-                          </optgroup>
-                          <option value="__custom__">✍️ Other / Custom State (Type name)</option>
-                        </select>
-                      )}
+                      <label className="form-label">
+                        Place of Business (State) <span style={{ color: 'var(--color-terracotta)' }}>*</span>
+                      </label>
+                      <select
+                        className="form-select"
+                        required
+                        value={signupForm.state}
+                        onChange={(e) => setSignupForm({ ...signupForm, state: e.target.value })}
+                      >
+                        <option value="">-- Select State or UT --</option>
+                        <optgroup label="States (28)">
+                          {STATES_LIST.map((s) => (
+                            <option key={s.code} value={s.name}>
+                              {s.name} ({s.code})
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Union Territories (8)">
+                          {UT_LIST.map((u) => (
+                            <option key={u.code} value={u.name}>
+                              {u.name} ({u.code})
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
                     </div>
 
                     <div className="form-group">

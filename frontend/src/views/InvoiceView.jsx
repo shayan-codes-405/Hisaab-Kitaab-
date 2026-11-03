@@ -1325,7 +1325,6 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                             );
                           })}
                         </optgroup>
-                        <option value="Other">Other Territory (Inter-state IGST)</option>
                       </select>
                     </div>
                   </div>
