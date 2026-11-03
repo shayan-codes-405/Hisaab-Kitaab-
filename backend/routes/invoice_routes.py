@@ -321,10 +321,11 @@ def preview_calculation(data: CalculateInvoiceRequest, user: dict = Depends(requ
 def list_invoices(
     search: Optional[str] = None,
     payment_status: Optional[str] = None,
+    staff: Optional[str] = None,
     limit: int = 100,
     user: dict = Depends(require_staff_or_admin)
 ):
-    """Retrieve invoice ledger with customer and payment status filtering."""
+    """Retrieve invoice ledger with customer, payment status, and staff member filtering."""
     query = {}
     if search:
         s = search.strip()
@@ -337,6 +338,17 @@ def list_invoices(
         
     if payment_status and payment_status != "all":
         query["payment_status"] = payment_status
+
+    if staff and staff != "all":
+        staff_val = staff.strip()
+        query["$and"] = query.get("$and", []) + [
+            {
+                "$or": [
+                    {"created_by": staff_val},
+                    {"staff_name": {"$regex": staff_val, "$options": "i"}}
+                ]
+            }
+        ]
 
     cursor = invoices_col.find(query).sort("created_at", -1).limit(limit)
     invoices = list(cursor)
@@ -450,6 +462,8 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
         "notes": data.notes or "",
         "terms_conditions": settings.get("terms_conditions", ""),
         "created_by": user.get("username", "staff"),
+        "staff_name": user.get("full_name") or user.get("username", "Staff"),
+        "staff_role": user.get("role", "staff"),
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc)
     }
@@ -477,6 +491,7 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
             "stock_after": new_balance,
             "reference": ref_text,
             "created_by": user.get("username", "staff"),
+            "staff_name": user.get("full_name") or user.get("username", "Staff"),
             "created_at": datetime.now(timezone.utc)
         })
 
@@ -618,6 +633,7 @@ def update_invoice(
             "stock_after": new_balance,
             "reference": f"Edit Invoice {inv.get('invoice_number')}",
             "created_by": user.get("username", "staff"),
+            "staff_name": user.get("full_name") or user.get("username", "Staff"),
             "created_at": datetime.now(timezone.utc)
         })
 
@@ -749,6 +765,7 @@ def cancel_invoice(invoice_id: str, user: dict = Depends(require_admin)):
                     "stock_after": 0, # audit mark
                     "reference": f"Cancellation of {inv.get('invoice_number')}: Restocked {qty} {item.get('unit', 'units')}",
                     "created_by": user.get("username", "admin"),
+                    "staff_name": user.get("full_name") or user.get("username", "Admin"),
                     "created_at": datetime.now(timezone.utc)
                 })
             except Exception:

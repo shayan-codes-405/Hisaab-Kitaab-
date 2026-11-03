@@ -230,16 +230,18 @@ export const printInvoiceViaIframe = (inv, seller) => {
 };
 
 export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onClearViewInvoiceId, autoOpenCreator = false, onResetAutoOpen = null }) => {
-  const { apiFetch, business, refreshBusiness, isAdmin, dataVersion, refreshData } = useAuth();
+  const { apiFetch, business, refreshBusiness, isAdmin, user, dataVersion, refreshData } = useAuth();
   const { showToast } = useToast();
 
   const [invoices, setInvoices] = useState([]);
   const [products, setProducts] = useState([]);
+  const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Search & Filter
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [staffFilter, setStaffFilter] = useState('all');
 
   // Modals & Panels
   const [showCreatorModal, setShowCreatorModal] = useState(false);
@@ -343,6 +345,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (statusFilter !== 'all') params.append('payment_status', statusFilter);
+      if (staffFilter !== 'all') params.append('staff', staffFilter);
       const res = await apiFetch(`/api/invoices?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -368,10 +371,24 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     }
   };
 
+  // Load Staff Members for Ledger Filter
+  const loadStaffMembers = async () => {
+    try {
+      const res = await apiFetch('/api/auth/staff');
+      if (res.ok) {
+        const data = await res.json();
+        setStaffList(data || []);
+      }
+    } catch (err) {
+      // staff members may not have permission to view full staff roster, ignore gracefully
+    }
+  };
+
   useEffect(() => {
     loadInvoices();
     loadProducts();
-  }, [statusFilter, dataVersion]);
+    loadStaffMembers();
+  }, [statusFilter, staffFilter, dataVersion]);
 
   useEffect(() => {
     if (viewInvoiceId) {
@@ -1056,8 +1073,23 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
             )}
           </div>
 
-          {/* Status Filter & Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Status & Staff Filters & Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <select
+              className="form-select"
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              style={{ width: 'auto' }}
+            >
+              <option value="all">Filter by Staff: All</option>
+              <option value="admin">👑 Store Owner / Admin</option>
+              {staffList.map((st) => (
+                <option key={st.id || st.username} value={st.username}>
+                  👤 {st.full_name} (@{st.username})
+                </option>
+              ))}
+            </select>
+
             <select
               className="form-select"
               value={statusFilter}
@@ -1084,6 +1116,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
             <tr>
               <th>Invoice No</th>
               <th>Customer</th>
+              <th>Billed By</th>
               <th>Issue Date & Time</th>
               <th>Supply State</th>
               <th style={{ textAlign: 'right' }}>Taxable Value</th>
@@ -1095,13 +1128,13 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           <tbody>
             {loading && invoices.length === 0 ? (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
                   Loading invoices from database...
                 </td>
               </tr>
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--color-muted)' }}>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--color-muted)' }}>
                   <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-forest)', marginBottom: '6px' }}>
                     No Invoices Generated Yet
                   </div>
@@ -1125,6 +1158,16 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       {inv.customer?.phone && <span>{inv.customer.phone} • </span>}
                       {inv.customer?.gstin ? <span>GSTIN: {inv.customer.gstin}</span> : <span>Unregistered</span>}
                     </div>
+                  </td>
+                  <td>
+                    <div style={{ fontWeight: 600, color: 'var(--color-forest)', fontSize: '12.5px' }}>
+                      {inv.staff_name || (inv.created_by === 'admin' ? 'Shayan Akhtar' : inv.created_by || 'Admin')}
+                    </div>
+                    {inv.created_by && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-muted)', fontFamily: 'var(--font-mono)' }}>
+                        @{inv.created_by}
+                      </div>
+                    )}
                   </td>
                   <td style={{ color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
                     <div style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{inv.invoice_date}</div>
@@ -1230,9 +1273,14 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                   INV
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--color-forest)' }}>
-                    {editingInvoice ? `Edit Invoice: ${editingInvoice.invoice_number}` : 'New GST Tax Invoice'}
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--color-forest)' }}>
+                      {editingInvoice ? `Edit Invoice: ${editingInvoice.invoice_number}` : 'New GST Tax Invoice'}
+                    </h3>
+                    <span style={{ backgroundColor: '#E0E7FF', color: '#3730A3', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                      👤 Cashier on Duty: {user?.full_name || 'Admin'} (@{user?.username})
+                    </span>
+                  </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
                     {editingInvoice ? 'Adjust line items or payments. Inventory stock differences will update automatically.' : 'Fill details below. Stock will be verified and deducted automatically.'}
                   </div>
@@ -1886,6 +1934,10 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ color: 'var(--color-muted)', fontSize: '12px' }}>
                     <b>Issue Date & Time:</b> {selectedInvoice.invoice_date} {selectedInvoice.invoice_time ? `• ${selectedInvoice.invoice_time}` : ''}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--color-forest)', marginTop: '2px' }}>
+                    <b>Billed By:</b> {selectedInvoice.staff_name || (selectedInvoice.created_by === 'admin' ? 'Store Owner' : selectedInvoice.created_by || 'Staff')}
+                    {selectedInvoice.created_by && ` (@${selectedInvoice.created_by})`}
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--color-forest)', margin: '4px 0' }}>
                     ₹{selectedInvoice.final_payable_amount.toFixed(2)}
