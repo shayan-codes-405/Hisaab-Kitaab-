@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { STATES_LIST, UT_LIST } from '../constants/states';
 
 // Isolated, reliable printing engine via dynamic iframe
 export const printInvoiceViaIframe = (inv, seller) => {
@@ -1304,16 +1305,27 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                         value={customer.state}
                         onChange={(e) => setCustomer({ ...customer, state: e.target.value })}
                       >
-                        <option value="Maharashtra">Maharashtra (Intra-state CGST+SGST)</option>
-                        <option value="Delhi">Delhi (Inter-state IGST)</option>
-                        <option value="Gujarat">Gujarat (Inter-state IGST)</option>
-                        <option value="Karnataka">Karnataka (Inter-state IGST)</option>
-                        <option value="Tamil Nadu">Tamil Nadu (Inter-state IGST)</option>
-                        <option value="Uttar Pradesh">Uttar Pradesh (Inter-state IGST)</option>
-                        <option value="Punjab">Punjab (Inter-state IGST)</option>
-                        <option value="Rajasthan">Rajasthan (Inter-state IGST)</option>
-                        <option value="West Bengal">West Bengal (Inter-state IGST)</option>
-                        <option value="Other">Other State (IGST)</option>
+                        <optgroup label="States (28)">
+                          {STATES_LIST.map((s) => {
+                            const isIntra = s.name.toLowerCase() === (business?.state || '').toLowerCase();
+                            return (
+                              <option key={s.code} value={s.name}>
+                                {s.name} ({s.code}) {isIntra ? '• Intra-state (CGST+SGST)' : '• Inter-state (IGST)'}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                        <optgroup label="Union Territories (8)">
+                          {UT_LIST.map((u) => {
+                            const isIntra = u.name.toLowerCase() === (business?.state || '').toLowerCase();
+                            return (
+                              <option key={u.code} value={u.name}>
+                                {u.name} ({u.code}) {isIntra ? '• Intra-state (CGST+SGST)' : '• Inter-state (IGST)'}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                        <option value="Other">Other Territory (Inter-state IGST)</option>
                       </select>
                     </div>
                   </div>
