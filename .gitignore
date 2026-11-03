@@ -55,3 +55,14 @@ yarn-error.log*
 *.sw?
 .DS_Store
 
+# Academic reports, documents & generated assets (keep repo clean)
+*.docx
+*.pdf
+fig*.png
+HisabKitab Circular Badge Logo.png
+create_report_docx.py
+build_exact_report_docx.py
+create_synopsis_docx.py
+generate_report_charts.py
+
+
