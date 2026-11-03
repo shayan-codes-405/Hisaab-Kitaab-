@@ -702,7 +702,7 @@ export const InventoryView = () => {
                 {/* Packaging & Multi-Unit Selector Mode */}
                 <div style={{ backgroundColor: 'var(--color-stone-light)', border: '1px solid var(--color-stone)', borderRadius: '8px', padding: '12px 14px', marginBottom: '12px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-forest)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>📦</span> Packaging & Multi-Unit Mode
+                    Packaging & Multi-Unit Mode
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginBottom: '10px' }}>
                     Choose how this item is stocked and sold in your shop:
@@ -744,7 +744,7 @@ export const InventoryView = () => {
                     >
                       <input type="radio" checked={packagingMode === 'multi'} onChange={() => setPackagingMode('multi')} style={{ marginTop: '3px' }} />
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--color-forest)' }}>📦 Box / Pack with Multiple Pieces</div>
+                        <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--color-forest)' }}>Box / Pack with Multiple Pieces</div>
                         <div style={{ fontSize: '10.5px', color: 'var(--color-muted)' }}>Sell in full boxes, half boxes, OR single loose pieces (e.g. 1 Box = 10 Pcs).</div>
                       </div>
                     </div>
@@ -773,6 +773,19 @@ export const InventoryView = () => {
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Stock Quantity *</label>
                         <input type="number" step="any" min="0" required className="form-input" value={formData.stock_qty} onChange={(e) => setFormData({ ...formData, stock_qty: e.target.value })} placeholder="0" />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Low Stock Threshold *</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          required
+                          className="form-input"
+                          value={formData.low_stock_threshold}
+                          onChange={(e) => setFormData({ ...formData, low_stock_threshold: e.target.value })}
+                          placeholder="e.g. 5"
+                        />
                       </div>
                     </div>
                   ) : (
@@ -820,7 +833,7 @@ export const InventoryView = () => {
                           </div>
                         </div>
                         <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-forest)', fontWeight: 700 }}>
-                          ✓ Formula: 1 {pkgUnit || 'Box'} = {pkgQty || 10} {looseUnit || 'Pcs'}
+                          Formula: 1 {pkgUnit || 'Box'} = {pkgQty || 10} {looseUnit || 'Pcs'}
                         </div>
                       </div>
 
@@ -857,7 +870,7 @@ export const InventoryView = () => {
                           </div>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--color-forest)', fontWeight: 600, marginTop: '4px' }}>
-                          📊 Total Stock: <b>{formData.stock_qty || 0} {looseUnit || 'Pcs'}</b>
+                          Total Stock: <b>{formData.stock_qty || 0} {looseUnit || 'Pcs'}</b>
                           {(parseFloat(pkgQty) || 10) > 1 && (
                             <span> ≈ {Math.floor((Number(formData.stock_qty) || 0) / (parseFloat(pkgQty) || 10))} {pkgUnit || 'Box'}es{Math.round((Number(formData.stock_qty) || 0) % (parseFloat(pkgQty) || 10)) > 0 ? ` + ${Math.round((Number(formData.stock_qty) || 0) % (parseFloat(pkgQty) || 10))} ${looseUnit || 'Pcs'}` : ''} ({( (Number(formData.stock_qty) || 0) / (parseFloat(pkgQty) || 10) ).toFixed(1)} {pkgUnit || 'Box'}es)</span>
                           )}

@@ -207,15 +207,15 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
             "created_at": datetime.now(timezone.utc)
         })
 
-        if user.get("role") != "admin":
-            notify_stock_inward(
-                staff_name=staff_name,
-                product_name=product_doc["name"],
-                quantity=data.stock_qty,
-                supplier_name="New Product Creation",
-                supplier_bill_no="OPENING-STOCK",
-                auth_type="NORMAL"
-            )
+        # Trigger instant SMS alert for every new product stock inward (even if added by admin during testing)
+        notify_stock_inward(
+            staff_name=staff_name,
+            product_name=product_doc["name"],
+            quantity=data.stock_qty,
+            supplier_name="New Product Creation",
+            supplier_bill_no="OPENING-STOCK",
+            auth_type="NORMAL"
+        )
 
     return {
         "message": f"Product '{data.name}' added successfully.",
