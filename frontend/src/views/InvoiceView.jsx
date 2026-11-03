@@ -1082,10 +1082,10 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
               style={{ width: 'auto' }}
             >
               <option value="all">Filter by Staff: All</option>
-              <option value="admin">👑 Store Owner / Admin</option>
+              <option value="admin">Store Owner (Admin)</option>
               {staffList.map((st) => (
                 <option key={st.id || st.username} value={st.username}>
-                  👤 {st.full_name} (@{st.username})
+                  {st.full_name} (@{st.username})
                 </option>
               ))}
             </select>
@@ -1249,7 +1249,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                           style={{ fontWeight: 700 }}
                           title="Admin only: Delete Invoice and Return Stock"
                         >
-                          🗑️ Delete
+                          Delete
                         </button>
                       )}
                     </div>
@@ -1278,7 +1278,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       {editingInvoice ? `Edit Invoice: ${editingInvoice.invoice_number}` : 'New GST Tax Invoice'}
                     </h3>
                     <span style={{ backgroundColor: '#E0E7FF', color: '#3730A3', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
-                      👤 Cashier on Duty: {user?.full_name || 'Admin'} (@{user?.username})
+                      Cashier: {user?.full_name || 'Admin'} (@{user?.username})
                     </span>
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
@@ -1293,7 +1293,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                   className="btn btn-secondary btn-sm"
                   title="Print live invoice draft"
                 >
-                  🖨️ Print Draft
+                  Print Draft
                 </button>
                 <button onClick={() => setShowCreatorModal(false)} className="btn btn-ghost btn-sm" style={{ fontSize: '16px' }}>
                   ✕

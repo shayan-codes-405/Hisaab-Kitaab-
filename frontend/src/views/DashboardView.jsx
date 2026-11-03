@@ -198,14 +198,13 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '15px' }}>📅</span>
           <div>
             <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--color-forest)' }}>
-              Active Period: {getRangeTitle()}
+              Period: {getRangeTitle()}
             </div>
             {date_bounds?.start && (
               <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
-                {date_bounds.start} &nbsp;➔&nbsp; {date_bounds.end || 'Today'}
+                {date_bounds.start} &nbsp;to&nbsp; {date_bounds.end || 'Today'}
               </div>
             )}
           </div>
@@ -308,7 +307,9 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>⚠️</span>
+            <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#D97706', color: '#ffffff', padding: '2px 6px', borderRadius: '4px' }}>
+              ALERT
+            </span>
             <div style={{ fontSize: '13px', color: '#92400E', fontWeight: 600 }}>
               {kpi.low_stock_count} item{kpi.low_stock_count > 1 ? 's are' : ' is'} below minimum threshold or out of stock!
             </div>
@@ -424,7 +425,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
       <div className="ledger-card" style={{ marginBottom: '24px' }}>
         <div className="card-header">
           <div>
-            <div className="card-title">👥 Staff Sales & Product Performance</div>
+            <div className="card-title">Staff Sales & Product Performance</div>
             <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
               Detailed sales volume, bills created, and top products sold by each staff member for {getRangeTitle()}.
             </div>
@@ -471,7 +472,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
                           color: st.role === 'admin' ? '#92400E' : st.role === 'inventory_manager' ? '#991B1B' : '#3730A3'
                         }}
                       >
-                        {st.role === 'admin' ? '👑 Owner' : st.role === 'inventory_manager' ? 'Storekeeper' : 'Billing Cashier'}
+                        {st.role === 'admin' ? 'Owner / Admin' : st.role === 'inventory_manager' ? 'Storekeeper' : 'Billing Cashier'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center', fontWeight: 700 }}>

@@ -368,7 +368,7 @@ export const AuthView = () => {
                   lineHeight: '1.4'
                 }}
               >
-                ℹ️ <b>Employee Notice:</b> Staff passwords can only be changed by the Store Administrator. If you forgot your password, please ask your store Admin to reset it for you.
+                <b>Staff Notice:</b> Employee passwords can only be changed by the Store Administrator. If you forgot your password, please ask your store Admin to reset it for you.
               </div>
 
               {/* Step 1: Request OTP by Username */}
@@ -385,7 +385,7 @@ export const AuthView = () => {
                       onChange={(e) => setForgotForm({ ...forgotForm, username: e.target.value })}
                     />
                     <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '5px' }}>
-                      💡 A 6-digit OTP will be sent to the business mobile registered with this Admin account.
+                      A 6-digit OTP will be sent to the business mobile registered with this Admin account.
                     </div>
                   </div>
 
@@ -395,7 +395,7 @@ export const AuthView = () => {
                     className="btn btn-primary"
                     style={{ width: '100%', marginTop: '14px', padding: '10px' }}
                   >
-                    {isSubmitting ? 'Verifying...' : 'Send Admin OTP 📲'}
+                    {isSubmitting ? 'Verifying...' : 'Send Admin OTP'}
                   </button>
 
                   <div style={{ textAlign: 'center', marginTop: '16px' }}>
@@ -484,7 +484,7 @@ export const AuthView = () => {
                     className="btn btn-primary"
                     style={{ width: '100%', marginTop: '16px', padding: '10px' }}
                   >
-                    {isSubmitting ? 'Resetting Password...' : 'Save New Password & Log In 🔐'}
+                    {isSubmitting ? 'Resetting Password...' : 'Save New Password & Log In'}
                   </button>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', fontSize: '12px' }}>
@@ -534,7 +534,7 @@ export const AuthView = () => {
                   lineHeight: '1.4'
                 }}
               >
-                👑 <b>Business Owner Setup:</b> You will become the primary Administrator with exclusive permissions to add employees, configure GST, and manage finances.
+                <b>Business Owner Setup:</b> You will become the primary Administrator with exclusive permissions to add employees, configure GST, and manage finances.
               </div>
 
               {/* Business Information */}

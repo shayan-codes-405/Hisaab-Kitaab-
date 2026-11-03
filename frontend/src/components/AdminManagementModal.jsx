@@ -269,7 +269,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
         >
           <div>
             <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#ffffff' }}>
-              ⚙️ Business & Staff Security Center
+              Business & Staff Security Center
             </h3>
             <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.75)', marginTop: '2px' }}>
               {business?.business_name || 'My Business'} • Owner Controls
@@ -319,7 +319,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
               boxShadow: activeTab === 'staff' ? '0 -2px 6px rgba(0,0,0,0.03)' : 'none'
             }}
           >
-            👥 Staff & Roles (2-Step OTP)
+            Staff & Roles (2-Step Verification)
           </button>
 
           <button
@@ -338,7 +338,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
               boxShadow: activeTab === 'business' ? '0 -2px 6px rgba(0,0,0,0.03)' : 'none'
             }}
           >
-            🏢 Business & GST Profile
+            Business & GST Profile
           </button>
         </div>
 
@@ -388,7 +388,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                     <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--color-forest)' }}>
-                      🛡️ 2-Step Employee Onboarding
+                      2-Step Employee Onboarding
                     </div>
                     <button
                       type="button"
@@ -501,7 +501,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                             className="btn btn-secondary btn-sm"
                             style={{ whiteSpace: 'nowrap' }}
                           >
-                            {isSendingOtp ? '📲 Sending SMS...' : '📲 Send Authorization OTP'}
+                            {isSendingOtp ? 'Sending SMS...' : 'Send Authorization Code'}
                           </button>
                         ) : (
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', width: '100%' }}>
@@ -529,7 +529,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                               className="btn btn-primary btn-sm"
                               style={{ whiteSpace: 'nowrap' }}
                             >
-                              {isSubmittingStaff ? 'Verifying...' : '✓ Authorize & Create Staff'}
+                              {isSubmittingStaff ? 'Verifying...' : 'Authorize & Create Staff'}
                             </button>
                           </div>
                         )}
@@ -538,7 +538,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                       {/* Demo OTP Helper if in simulation mode */}
                       {otpInfo && otpInfo.demo_otp && (
                         <div style={{ marginTop: '10px', fontSize: '11px', color: '#047857', backgroundColor: '#ECFDF5', padding: '6px 10px', borderRadius: '4px', border: '1px solid #A7F3D0' }}>
-                          ℹ️ <b>Demo Code:</b> <code>{otpInfo.demo_otp}</code> (Simulation active).
+                          <b>Demo Code:</b> <code>{otpInfo.demo_otp}</code> (Simulation active).
                         </div>
                       )}
                     </div>
@@ -560,7 +560,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#92400E' }}>
-                      🔑 Reset Password for @{resetTargetStaff.username} ({resetTargetStaff.full_name})
+                      Reset Password for @{resetTargetStaff.username} ({resetTargetStaff.full_name})
                     </div>
                     <button
                       type="button"
@@ -679,7 +679,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                   }}
                                   title="Reset this employee's password directly"
                                 >
-                                  🔑 Reset Pwd
+                                  Reset Password
                                 </button>
 
                                 {/* Deactivate / Reactivate Access */}
