@@ -4,10 +4,11 @@ from fastapi import APIRouter, HTTPException, Depends, Query, status
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-from database import products_col, stock_movements_col, stock_inwards_col, serialize_doc
+from database import products_col, stock_movements_col, stock_inwards_col, users_col, serialize_doc
 from auth import require_staff_or_admin, require_admin, require_inventory_or_admin
 from services.stock_alert_service import (
     notify_stock_inward,
+    notify_stockist_statement,
     send_restock_authorization_otp,
     verify_restock_otp,
     trigger_unverified_cron_reminder
@@ -78,10 +79,13 @@ class StockInwardRequest(BaseModel):
     stockist_remarks: Optional[str] = ""
 
 class InwardAuditRequest(BaseModel):
-    action: str = Field(..., pattern="^(VERIFY|DISCREPANCY|CORRECT_QUANTITY)$")
+    action: str = Field(..., pattern="^(VERIFY|DISCREPANCY|CORRECT_QUANTITY|ACCEPT_EXPLANATION|REJECT_EXPLANATION)$")
     actual_bill_qty: Optional[float] = None
     corrected_qty: Optional[float] = None
     audit_notes: Optional[str] = ""
+
+class StockistStatementRequest(BaseModel):
+    statement: str = Field(..., min_length=3)
 
 @router.get("")
 def list_products(
@@ -531,6 +535,198 @@ def audit_stock_inward(
             "message": f"Discrepancy of {shortage_qty} units recorded for Bill #{inw.get('supplier_bill_no')}.",
             "discrepancy_qty": shortage_qty
         }
+
+    elif action == "ACCEPT_EXPLANATION":
+        audit_note = data.audit_notes or "Store Owner accepted stockist explanation: supplier shortage confirmed (staff count verified accurate)."
+        stock_inwards_col.update_one(
+            {"_id": inw["_id"]},
+            {
+                "$set": {
+                    "status": "VERIFIED",
+                    "admin_decision": "ACCEPTED",
+                    "admin_decision_notes": audit_note,
+                    "audited_by": admin_user.get("username", "admin"),
+                    "audited_by_name": admin_user.get("full_name", "Admin"),
+                    "audited_at": now_utc
+                }
+            }
+        )
+        stock_movements_col.insert_one({
+            "product_id": inw["product_id"],
+            "product_name": inw["product_name"],
+            "sku": inw.get("sku", ""),
+            "movement_type": "AUDIT_ACCEPT_STATEMENT",
+            "quantity_delta": 0.0,
+            "stock_after": inw.get("stock_after", 0.0),
+            "reference": f"Admin Accepted Statement for Bill #{inw.get('supplier_bill_no')} - Stockist {inw.get('received_by_name')} verified accurate: {audit_note[:70]}",
+            "created_by": admin_user.get("username", "admin"),
+            "staff_name": admin_user.get("full_name", "Admin"),
+            "created_at": now_utc
+        })
+        return {
+            "success": True,
+            "message": f"Stockist explanation accepted for Bill #{inw.get('supplier_bill_no')}. Inward marked as VERIFIED and stockist performance credited."
+        }
+
+    elif action == "REJECT_EXPLANATION":
+        audit_note = data.audit_notes or "Store Owner rejected stockist explanation: staff miscount or unjustified claim."
+        stock_inwards_col.update_one(
+            {"_id": inw["_id"]},
+            {
+                "$set": {
+                    "admin_decision": "REJECTED",
+                    "admin_decision_notes": audit_note,
+                    "audited_by": admin_user.get("username", "admin"),
+                    "audited_by_name": admin_user.get("full_name", "Admin"),
+                    "audited_at": now_utc
+                }
+            }
+        )
+        stock_movements_col.insert_one({
+            "product_id": inw["product_id"],
+            "product_name": inw["product_name"],
+            "sku": inw.get("sku", ""),
+            "movement_type": "AUDIT_REJECT_STATEMENT",
+            "quantity_delta": 0.0,
+            "stock_after": inw.get("stock_after", 0.0),
+            "reference": f"Admin Rejected Statement for Bill #{inw.get('supplier_bill_no')} - Stockist {inw.get('received_by_name')} counting error/discrepancy flagged: {audit_note[:70]}",
+            "created_by": admin_user.get("username", "admin"),
+            "staff_name": admin_user.get("full_name", "Admin"),
+            "created_at": now_utc
+        })
+        return {
+            "success": True,
+            "message": f"Stockist explanation rejected for Bill #{inw.get('supplier_bill_no')}. Counting error flagged in stockist audit performance."
+        }
+
+@router.post("/inward/{inward_id}/statement")
+def submit_stockist_statement(
+    inward_id: str,
+    data: StockistStatementRequest,
+    user: dict = Depends(require_staff_or_admin)
+):
+    """Allows a stockist/staff member to submit or update their explanation statement on an inward with shortage/discrepancy."""
+    try:
+        inw = stock_inwards_col.find_one({"_id": ObjectId(inward_id)})
+        if not inw:
+            raise HTTPException(status_code=404, detail="Stock inward record not found.")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid inward ID.")
+
+    stmt = data.statement.strip()
+    now_utc = datetime.now(timezone.utc)
+    staff_name = user.get("full_name") or user.get("username", "Stockist")
+
+    stock_inwards_col.update_one(
+        {"_id": inw["_id"]},
+        {
+            "$set": {
+                "stockist_statement": stmt,
+                "stockist_remarks": stmt,
+                "stockist_statement_at": now_utc,
+                "stockist_statement_by": user.get("username"),
+                "stockist_statement_by_name": staff_name,
+                "admin_decision": "PENDING_REVIEW"
+            }
+        }
+    )
+
+    # Permanent log in movement ledger
+    stock_movements_col.insert_one({
+        "product_id": inw["product_id"],
+        "product_name": inw["product_name"],
+        "sku": inw.get("sku", ""),
+        "movement_type": "STOCKIST_STATEMENT",
+        "quantity_delta": 0.0,
+        "stock_after": inw.get("stock_after", 0.0),
+        "reference": f"Stockist Explanation for Bill #{inw.get('supplier_bill_no')}: {stmt[:80]}",
+        "created_by": user.get("username", "staff"),
+        "staff_name": staff_name,
+        "created_at": now_utc
+    })
+
+    # Notify store owner via SMS
+    notify_stockist_statement(
+        staff_name=staff_name,
+        product_name=inw.get("product_name", "Product"),
+        supplier_bill_no=inw.get("supplier_bill_no", "Bill"),
+        statement=stmt
+    )
+
+    return {
+        "success": True,
+        "message": "Explanation statement submitted successfully. Store Owner has been alerted for audit review.",
+        "statement": stmt
+    }
+
+@router.get("/stockist-performance")
+def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
+    """Calculate and return stock audit accuracy and performance metrics for all stockists/staff."""
+    staff_users = list(users_col.find(
+        {"role": {"$in": ["inventory_manager", "staff"]}},
+        {"password_hash": 0}
+    ))
+    
+    inward_records = list(stock_inwards_col.find({}))
+    
+    performance_list = []
+    for su in staff_users:
+        u_id = str(su["_id"])
+        u_name = su.get("username")
+        f_name = su.get("full_name") or u_name
+        
+        # Match inwards for this user
+        user_inwards = [
+            inw for inw in inward_records
+            if str(inw.get("received_by_id")) == u_id
+            or inw.get("received_by_name") == f_name
+            or inw.get("received_by_name") == u_name
+            or inw.get("stockist_statement_by") == u_name
+        ]
+        
+        total = len(user_inwards)
+        verified = sum(1 for inw in user_inwards if inw.get("status") == "VERIFIED" and inw.get("admin_decision") != "REJECTED")
+        accepted = sum(1 for inw in user_inwards if inw.get("admin_decision") == "ACCEPTED")
+        rejected = sum(1 for inw in user_inwards if inw.get("admin_decision") == "REJECTED")
+        pending = sum(1 for inw in user_inwards if inw.get("status") == "PENDING_AUDIT" or (inw.get("status") == "FLAGGED_DISCREPANCY" and inw.get("admin_decision") != "ACCEPTED" and inw.get("admin_decision") != "REJECTED"))
+        discrepancies = sum(1 for inw in user_inwards if inw.get("status") == "FLAGGED_DISCREPANCY" or inw.get("discrepancy_qty", 0) > 0)
+
+        # Accuracy rate: of all inwards that have been audited/resolved, what % was verified or accepted?
+        audited_total = verified + rejected
+        if audited_total > 0:
+            accuracy_rate = round((verified / audited_total) * 100, 1)
+        elif total > 0:
+            accuracy_rate = 100.0
+        else:
+            accuracy_rate = 100.0
+
+        if accuracy_rate >= 90:
+            rating_text = "High Accuracy"
+            rating_color = "#166534"
+        elif accuracy_rate >= 70:
+            rating_text = "Moderate Accuracy"
+            rating_color = "#B45309"
+        else:
+            rating_text = "Needs Improvement"
+            rating_color = "#991B1B"
+
+        performance_list.append({
+            "staff_id": u_id,
+            "username": u_name,
+            "full_name": f_name,
+            "role": su.get("role", "staff"),
+            "total_inwards": total,
+            "verified_count": verified,
+            "accepted_count": accepted,
+            "rejected_count": rejected,
+            "pending_count": pending,
+            "discrepancy_count": discrepancies,
+            "accuracy_rate": accuracy_rate,
+            "rating_text": rating_text,
+            "rating_color": rating_color
+        })
+
+    return performance_list
 
 @router.get("/cron/audit-reminder")
 @router.post("/cron/audit-reminder")

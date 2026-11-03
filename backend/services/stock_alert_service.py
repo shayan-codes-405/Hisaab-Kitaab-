@@ -144,6 +144,28 @@ def notify_stock_inward(
         sent_by=staff_name
     )
 
+def notify_stockist_statement(
+    staff_name: str,
+    product_name: str,
+    supplier_bill_no: str,
+    statement: str
+) -> dict:
+    """Instant SMS to owner when stockist submits an explanation statement for a shortage or discrepancy."""
+    phone, _ = get_admin_phone_and_name()
+    if not phone:
+        return {"success": False, "message": "No admin phone configured"}
+
+    msg = (
+        f"Hisaab-Kitaab Alert: Stockist {staff_name} submitted explanation for Bill #{supplier_bill_no} "
+        f"('{product_name}'): \"{statement[:60]}\". Please review and accept/reject in Stock Audit Tray."
+    )
+    return dispatch_textbee_sms(
+        recipient_phone=phone,
+        message=msg,
+        log_type="STOCKIST_STATEMENT",
+        sent_by=staff_name
+    )
+
 def notify_low_stock(
     product_name: str,
     remaining_qty: float,
