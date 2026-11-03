@@ -1,19 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { AdminManagementModal } from './components/AdminManagementModal';
 import { AuthView } from './views/AuthView';
 import { DashboardView } from './views/DashboardView';
 import { InvoiceView } from './views/InvoiceView';
 import { InventoryView } from './views/InventoryView';
 
 const MainApplication = () => {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'invoice', 'inventory'
+  const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'dashboard' : 'invoice');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [viewInvoiceId, setViewInvoiceId] = useState(null);
   const [openCreateInvoice, setOpenCreateInvoice] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+
+  // Enforce staff billing isolation: redirect non-admin billing cashiers to invoice view
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && !isAdmin && user?.role === 'staff') {
+      if (activeTab !== 'invoice') {
+        setActiveTab('invoice');
+      }
+    }
+  }, [isLoading, isAuthenticated, isAdmin, user, activeTab]);
 
   if (isLoading) {
     return (
@@ -88,6 +99,12 @@ const MainApplication = () => {
           activeTab={activeTab}
           onNewInvoice={handleNewInvoice}
           onNewProduct={handleNewProduct}
+          onOpenAdminModal={() => setShowAdminModal(true)}
+        />
+
+        <AdminManagementModal
+          isOpen={showAdminModal}
+          onClose={() => setShowAdminModal(false)}
         />
 
         <main className="content-viewport">

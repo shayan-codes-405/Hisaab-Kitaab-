@@ -24,6 +24,7 @@ products_col = db["products"]
 invoices_col = db["invoices"]
 stock_movements_col = db["stock_movements"]
 sms_logs_col = db["sms_logs"]
+otp_verifications_col = db["otp_verifications"]
 
 def init_db_indexes():
     """Ensure all mandatory unique and performance indexes exist."""
@@ -43,6 +44,8 @@ def init_db_indexes():
         stock_movements_col.create_index([("product_id", ASCENDING), ("created_at", DESCENDING)])
         # SMS audit logs
         sms_logs_col.create_index([("created_at", DESCENDING)])
+        # 10-minute auto-expiring TTL index for OTP verification codes
+        otp_verifications_col.create_index([("created_at", ASCENDING)], expireAfterSeconds=600)
         logger.info("MongoDB indexes verified successfully.")
     except Exception as e:
         logger.warning(f"Index initialization warning: {e}")

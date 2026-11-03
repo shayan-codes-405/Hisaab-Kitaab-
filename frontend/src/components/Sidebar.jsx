@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed }) => {
   const { user, business, logout, isAdmin } = useAuth();
 
-  const navItems = [
+  const allNavItems = [
     {
       id: 'dashboard',
       label: 'Dashboard',
@@ -19,7 +19,7 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed }) =>
     },
     {
       id: 'invoice',
-      label: 'Invoice',
+      label: 'Invoice & Billing',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -32,7 +32,7 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed }) =>
     },
     {
       id: 'inventory',
-      label: 'Inventory',
+      label: 'Inventory & Stock',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -42,6 +42,13 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed }) =>
       )
     }
   ];
+
+  const isStorekeeper = user?.role === 'inventory_manager';
+  const navItems = allNavItems.filter((item) => {
+    if (isAdmin) return true;
+    if (isStorekeeper) return item.id === 'invoice' || item.id === 'inventory';
+    return item.id === 'invoice';
+  });
 
   return (
     <aside

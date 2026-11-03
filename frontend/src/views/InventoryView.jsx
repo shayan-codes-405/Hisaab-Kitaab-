@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 export const InventoryView = () => {
-  const { apiFetch, isAdmin, dataVersion, refreshData } = useAuth();
+  const { apiFetch, isAdmin, user, dataVersion, refreshData } = useAuth();
   const { showToast } = useToast();
 
   const [products, setProducts] = useState([]);
@@ -320,9 +320,11 @@ export const InventoryView = () => {
               Stock Ledger 📋
             </button>
 
-            <button onClick={openAddModal} className="btn btn-primary">
-              <span>+</span> Add Product
-            </button>
+            {(isAdmin || user?.role === 'inventory_manager') && (
+              <button onClick={openAddModal} className="btn btn-primary">
+                <span>+</span> Add Product
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -336,7 +338,7 @@ export const InventoryView = () => {
               <th>Product Details</th>
               <th>Category</th>
               <th>GST %</th>
-              <th style={{ textAlign: 'right' }}>Cost Price</th>
+              {isAdmin && <th style={{ textAlign: 'right' }}>Cost Price</th>}
               <th style={{ textAlign: 'right' }}>Selling Price</th>
               <th style={{ textAlign: 'center' }}>Stock Available</th>
               <th style={{ textAlign: 'center' }}>Status</th>
@@ -346,13 +348,13 @@ export const InventoryView = () => {
           <tbody>
             {loading && products.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
+                <td colSpan={isAdmin ? 9 : 8} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
                   Loading inventory catalog from MongoDB...
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
+                <td colSpan={isAdmin ? 9 : 8} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
                   No matching products found in inventory. Click <b>"+ Add Product"</b> to create your first item.
                 </td>
               </tr>
@@ -379,9 +381,11 @@ export const InventoryView = () => {
                       </span>
                     </td>
                     <td style={{ fontWeight: 600 }}>{p.gst_rate}%</td>
-                    <td className="tabular-nums" style={{ textAlign: 'right', color: 'var(--color-muted)' }}>
-                      ₹{p.purchase_price.toFixed(2)}
-                    </td>
+                    {isAdmin && (
+                      <td className="tabular-nums" style={{ textAlign: 'right', color: 'var(--color-muted)' }}>
+                        ₹{Number(p.purchase_price || 0).toFixed(2)}
+                      </td>
+                    )}
                     <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--color-forest)' }}>
                       ₹{p.selling_price.toFixed(2)}
                     </td>
@@ -410,35 +414,43 @@ export const InventoryView = () => {
                     </td>
                     <td className="table-sticky-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <button
-                          onClick={() => {
-                            setRestockProduct(p);
-                            setRestockQty(10);
-                            setShowRestockModal(true);
-                          }}
-                          title="Quick Restock"
-                          className="btn btn-secondary btn-xs"
-                        >
-                          + Restock
-                        </button>
+                        {(isAdmin || user?.role === 'inventory_manager') ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                setRestockProduct(p);
+                                setRestockQty(10);
+                                setShowRestockModal(true);
+                              }}
+                              title="Quick Restock"
+                              className="btn btn-secondary btn-xs"
+                            >
+                              + Restock
+                            </button>
 
-                        <button
-                          onClick={() => openEditModal(p)}
-                          title="Edit Product"
-                          className="btn btn-ghost btn-xs"
-                        >
-                          Edit
-                        </button>
+                            <button
+                              onClick={() => openEditModal(p)}
+                              title="Edit Product"
+                              className="btn btn-ghost btn-xs"
+                            >
+                              Edit
+                            </button>
 
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDeleteProduct(p.id, p.name)}
-                            title="Delete Product"
-                            className="btn btn-danger-subtle btn-xs"
-                            style={{ color: '#DC2626' }}
-                          >
-                            ✕
-                          </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteProduct(p.id, p.name)}
+                                title="Delete Product"
+                                className="btn btn-danger-subtle btn-xs"
+                                style={{ color: '#DC2626' }}
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: 'var(--color-muted)', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--color-ivory-dark)' }}>
+                            Catalog Item
+                          </span>
                         )}
                       </div>
                     </td>

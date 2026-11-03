@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from database import products_col, stock_movements_col, serialize_doc
-from auth import require_staff_or_admin, require_admin
+from auth import require_staff_or_admin, require_admin, require_inventory_or_admin
 
 router = APIRouter(prefix="/api/inventory", tags=["Inventory Management"])
 
@@ -93,7 +93,10 @@ def list_products(
             p_status = "in_stock"
             
         p["stock_status"] = p_status
-        
+        # Confidentiality: conceal wholesale purchase costs from regular billing staff
+        if user.get("role") == "staff":
+            p["purchase_price"] = 0.0
+
         if status_filter == "all" or status_filter == p_status:
             results.append(p)
             
@@ -107,7 +110,7 @@ def list_products(
     }
 
 @router.post("")
-def add_product(data: ProductCreate, user: dict = Depends(require_staff_or_admin)):
+def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_admin)):
     """Add a new product with stock and initial stock movement log."""
     # Check duplicate SKU
     clean_sku = data.sku.strip().upper()
@@ -171,7 +174,7 @@ def get_product(product_id: str, user: dict = Depends(require_staff_or_admin)):
         raise HTTPException(status_code=400, detail=f"Invalid product ID: {str(e)}")
 
 @router.put("/{product_id}")
-def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(require_staff_or_admin)):
+def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(require_inventory_or_admin)):
     """Update existing product details and record stock adjustment if changed."""
     try:
         existing = products_col.find_one({"_id": ObjectId(product_id)})
@@ -240,7 +243,7 @@ def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(re
     return {"message": "Product updated successfully."}
 
 @router.post("/{product_id}/restock")
-def restock_product(product_id: str, data: RestockRequest, user: dict = Depends(require_staff_or_admin)):
+def restock_product(product_id: str, data: RestockRequest, user: dict = Depends(require_inventory_or_admin)):
     """Restock an existing product quantity and log movement."""
     try:
         p = products_col.find_one({"_id": ObjectId(product_id)})

@@ -1199,14 +1199,16 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       >
                         👁️ View
                       </button>
-                      <button
-                        onClick={() => handleDeleteInvoice(inv)}
-                        className="btn btn-danger-subtle btn-xs"
-                        style={{ fontWeight: 700 }}
-                        title="Delete Invoice and Return Stock"
-                      >
-                        🗑️ Delete
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteInvoice(inv)}
+                          className="btn btn-danger-subtle btn-xs"
+                          style={{ fontWeight: 700 }}
+                          title="Admin only: Delete Invoice and Return Stock"
+                        >
+                          🗑️ Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

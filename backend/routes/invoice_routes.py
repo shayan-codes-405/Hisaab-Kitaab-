@@ -718,8 +718,8 @@ def update_payment_status(
     }
 
 @router.delete("/{invoice_id}")
-def cancel_invoice(invoice_id: str, user: dict = Depends(require_staff_or_admin)):
-    """Delete or cancel an invoice, safely restocking items back to inventory."""
+def cancel_invoice(invoice_id: str, user: dict = Depends(require_admin)):
+    """Admin-only: Delete or cancel an invoice, safely restocking items back to inventory."""
     try:
         inv = invoices_col.find_one({"_id": ObjectId(invoice_id)})
     except Exception:

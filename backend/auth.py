@@ -117,9 +117,18 @@ def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
         )
     return current_user
 
+def require_inventory_or_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """FastAPI Dependency: Restrict stock modifications to Admin or Storekeeper."""
+    if current_user.get("role") not in ("admin", "inventory_manager"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Stock management privileges required. Billing staff cannot alter base inventory."
+        )
+    return current_user
+
 def require_staff_or_admin(current_user: dict = Depends(get_current_user)) -> dict:
-    """FastAPI Dependency: Permits both Staff and Admin."""
-    if current_user.get("role") not in ("admin", "staff"):
+    """FastAPI Dependency: Permits Staff, Inventory Managers, and Admins."""
+    if current_user.get("role") not in ("admin", "staff", "inventory_manager"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access restricted to authorized business staff."

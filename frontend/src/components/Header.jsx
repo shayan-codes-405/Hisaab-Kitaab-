@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export const Header = ({ activeTab, onNewInvoice, onNewProduct }) => {
-  const { business } = useAuth();
+export const Header = ({ activeTab, onNewInvoice, onNewProduct, onOpenAdminModal }) => {
+  const { business, isAdmin } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const dateInputRef = useRef(null);
@@ -130,13 +130,24 @@ export const Header = ({ activeTab, onNewInvoice, onNewProduct }) => {
           />
         </div>
 
+        {isAdmin && onOpenAdminModal && (
+          <button
+            type="button"
+            onClick={onOpenAdminModal}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>⚙️</span> Store & Staff
+          </button>
+        )}
+
         {activeTab !== 'invoice' && (
           <button onClick={onNewInvoice} className="btn btn-primary btn-sm">
             <span>+</span> New Invoice
           </button>
         )}
 
-        {activeTab === 'inventory' && (
+        {isAdmin && activeTab === 'inventory' && (
           <button onClick={onNewProduct} className="btn btn-primary btn-sm">
             <span>+</span> Add Product
           </button>
