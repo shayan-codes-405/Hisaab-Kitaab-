@@ -15,7 +15,7 @@
   Combines the classical Indian accounting ledger aesthetic (<i>Bahi-Khata</i>) with high-throughput MongoDB NoSQL document architecture, real-time GST tax computation, fractional packaging conversions, and instant SMS/PDF dispatch.
 </p>
 
-[🌐 Live Web Application](https://hisaab-kitaab-eight-zeta.vercel.app/) • [🚀 Render Backend API](https://hisabkitab-backend.onrender.com) • [📋 API Documentation](https://hisabkitab-backend.onrender.com/docs) • [📖 Deployment Guide](DEPLOYMENT.md)
+[🌐 Live Web Application](https://hisaab-kitaab-eight-zeta.vercel.app/) • [🚀 Render Backend API](https://hisabkitab-backend.onrender.com) • [📋 API Documentation](https://hisabkitab-backend.onrender.com/docs) • [📖 Deployment Guide](#-cloud-deployment)
 
 </div>
 
@@ -331,7 +331,6 @@ graph TD
 HisabKitab/
 ├── .env.example                  # Root environment template
 ├── .gitignore                    # Cleaned gitignore (omits docx, pdf, loose images)
-├── DEPLOYMENT.md                 # Complete cloud deployment walkthrough
 ├── README.md                     # Comprehensive project documentation
 ├── render.yaml                   # Render Cloud Blueprint (Infrastructure as Code)
 ├── requirements.txt              # Root Python dependencies
@@ -482,8 +481,6 @@ HisabKitab is architected for zero-cost, high-reliability deployment on **Render
    VITE_API_BASE_URL=https://<your-render-backend>.onrender.com
    ```
 4. Click **Deploy**. Vercel will build and launch your application globally.
-
-*For complete step-by-step instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).*
 
 ---
 
