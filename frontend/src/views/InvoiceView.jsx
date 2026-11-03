@@ -1637,7 +1637,8 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px' }}>
                         {business?.address || 'Business Address'}
                         <br />
-                        <b>GSTIN:</b> {business?.gstin || '27AAAAA0000A1Z5'} | State: {business?.state || 'Maharashtra'}
+                        {business?.gstin ? <span><b>GSTIN:</b> {business.gstin} | </span> : null}
+                        State: {business?.state || 'West Bengal'}
                       </div>
                     </div>
 
@@ -2115,7 +2116,10 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 {printInvoice.seller_snapshot?.address || business?.address || 'Main Market Road'}
               </div>
               <div style={{ fontSize: '11px', color: '#444444' }}>
-                <b>GSTIN:</b> {printInvoice.seller_snapshot?.gstin || business?.gstin || '27AAAAA0000A1Z5'}
+                {(printInvoice.seller_snapshot?.gstin || business?.gstin) && (
+                  <span><b>GSTIN:</b> {printInvoice.seller_snapshot?.gstin || business?.gstin} • </span>
+                )}
+                <span><b>State:</b> {printInvoice.seller_snapshot?.state || business?.state || 'West Bengal'}</span>
                 {(printInvoice.seller_snapshot?.phone || business?.phone) && (
                   <span> • <b>Tel:</b> {printInvoice.seller_snapshot?.phone || business?.phone}</span>
                 )}

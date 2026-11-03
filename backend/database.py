@@ -8,7 +8,7 @@ from config import MONGO_URI, DATABASE_NAME
 logger = logging.getLogger("hisabkitab.database")
 
 try:
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
+    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=10000)
     db = client[DATABASE_NAME]
     # Check connection
     client.server_info()
