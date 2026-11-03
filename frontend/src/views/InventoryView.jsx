@@ -40,6 +40,9 @@ export const InventoryView = () => {
   const [otpSending, setOtpSending] = useState(false);
   const [inwardSubmitting, setInwardSubmitting] = useState(false);
   const [phoneHint, setPhoneHint] = useState('');
+  const [inwardHasDiscrepancy, setInwardHasDiscrepancy] = useState(false);
+  const [inwardBilledQty, setInwardBilledQty] = useState('');
+  const [inwardStockistRemarks, setInwardStockistRemarks] = useState('');
 
   // Stock Audit Tray Modal State
   const [showAuditTrayModal, setShowAuditTrayModal] = useState(false);
@@ -49,6 +52,9 @@ export const InventoryView = () => {
   const [selectedInwardForDiscrepancy, setSelectedInwardForDiscrepancy] = useState(null);
   const [discrepancyActualQty, setDiscrepancyActualQty] = useState('');
   const [discrepancyNotes, setDiscrepancyNotes] = useState('');
+  const [selectedInwardForRecount, setSelectedInwardForRecount] = useState(null);
+  const [recountCorrectedQty, setRecountCorrectedQty] = useState('');
+  const [recountNotes, setRecountNotes] = useState('');
 
   // Form State
   const initialForm = {
@@ -292,6 +298,9 @@ export const InventoryView = () => {
     setInwardCostPrice(p.purchase_price ? String(p.purchase_price) : '');
     setInwardOtp('');
     setInwardDeclaration('');
+    setInwardHasDiscrepancy(false);
+    setInwardBilledQty('');
+    setInwardStockistRemarks('');
     setOtpSent(false);
     setInwardAuditStatus(null);
     setInwardAuthType('NORMAL');
@@ -355,7 +364,10 @@ export const InventoryView = () => {
         cost_price: inwardCostPrice ? parseFloat(inwardCostPrice) : null,
         authorization_type: inwardAuthType,
         otp: inwardOtp.trim(),
-        emergency_declaration: inwardDeclaration.trim()
+        emergency_declaration: inwardDeclaration.trim(),
+        has_discrepancy: inwardHasDiscrepancy,
+        billed_qty: inwardHasDiscrepancy && inwardBilledQty ? parseFloat(inwardBilledQty) : null,
+        stockist_remarks: inwardHasDiscrepancy ? inwardStockistRemarks.trim() : ''
       };
 
       const res = await apiFetch('/api/inventory/inward', {
@@ -398,13 +410,14 @@ export const InventoryView = () => {
     loadAuditInwards(auditFilter);
   };
 
-  const handleAuditAction = async (inwardId, action, actualBillQty = null, notes = '') => {
+  const handleAuditAction = async (inwardId, action, actualBillQty = null, notes = '', correctedQty = null) => {
     try {
       const res = await apiFetch(`/api/inventory/inward/${inwardId}/audit`, {
         method: 'POST',
         body: JSON.stringify({
           action,
           actual_bill_qty: actualBillQty !== null ? parseFloat(actualBillQty) : null,
+          corrected_qty: correctedQty !== null ? parseFloat(correctedQty) : null,
           audit_notes: notes
         })
       });
@@ -412,6 +425,7 @@ export const InventoryView = () => {
       if (!res.ok) throw new Error(data.detail || 'Audit action failed');
       showToast(data.message, 'success');
       setSelectedInwardForDiscrepancy(null);
+      setSelectedInwardForRecount(null);
       loadAuditInwards(auditFilter);
       loadProducts();
       refreshData();
@@ -1084,7 +1098,7 @@ export const InventoryView = () => {
                   </div>
                 </div>
 
-                <div className="form-group" style={{ marginBottom: '16px' }}>
+                <div className="form-group" style={{ marginBottom: '14px' }}>
                   <label className="form-label">Supplier Bill Date</label>
                   <input
                     type="date"
@@ -1092,6 +1106,67 @@ export const InventoryView = () => {
                     value={inwardBillDate}
                     onChange={(e) => setInwardBillDate(e.target.value)}
                   />
+                </div>
+
+                {/* Arrival Discrepancy / Shortage Reporting */}
+                <div style={{ borderTop: '1px solid var(--color-stone-light)', paddingTop: '12px', marginTop: '12px', marginBottom: '14px' }}>
+                  <label style={{ fontSize: '12.5px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#92400E' }}>
+                    <input
+                      type="checkbox"
+                      checked={inwardHasDiscrepancy}
+                      onChange={(e) => {
+                        setInwardHasDiscrepancy(e.target.checked);
+                        if (!e.target.checked) {
+                          setInwardBilledQty('');
+                          setInwardStockistRemarks('');
+                        }
+                      }}
+                    />
+                    Report Supplier Invoice Discrepancy / Shortage on Arrival
+                  </label>
+
+                  {inwardHasDiscrepancy && (
+                    <div style={{ backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', padding: '12px', borderRadius: '6px', marginTop: '10px' }}>
+                      <div className="form-group" style={{ marginBottom: '10px' }}>
+                        <label className="form-label" style={{ fontSize: '11.5px', color: '#92400E' }}>
+                          Billed Quantity on Supplier Invoice *
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0.1"
+                          required={inwardHasDiscrepancy}
+                          className="form-input"
+                          placeholder="e.g. 100 (as billed on invoice)"
+                          value={inwardBilledQty}
+                          onChange={(e) => setInwardBilledQty(e.target.value)}
+                        />
+                        {inwardBilledQty && inwardQty && parseFloat(inwardBilledQty) > parseFloat(inwardQty) && (
+                          <div style={{ fontSize: '11px', color: '#B45309', marginTop: '4px', fontWeight: 600 }}>
+                            Shortage Detected: {Math.round((parseFloat(inwardBilledQty) - parseFloat(inwardQty)) * 1000) / 1000} units short on delivery.
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: '11.5px', color: '#92400E' }}>
+                          Stockist Discrepancy Statement / Reason Note *
+                        </label>
+                        <textarea
+                          rows={2}
+                          required={inwardHasDiscrepancy}
+                          className="form-input"
+                          placeholder="e.g. Supplier bill shows 100, but physical box only contained 95 pens. 5 units short."
+                          value={inwardStockistRemarks}
+                          onChange={(e) => setInwardStockistRemarks(e.target.value)}
+                          style={{ fontSize: '12px' }}
+                        />
+                        <div style={{ fontSize: '11px', color: '#B45309', marginTop: '4px' }}>
+                          This shortage statement will be sent instantly via SMS to the Store Owner for audit.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Authorization Mode Selection if Prior Inward Unverified */}
@@ -1262,6 +1337,16 @@ export const InventoryView = () => {
                             <td>
                               <div style={{ fontWeight: 600 }}>{inw.supplier_name}</div>
                               <div style={{ fontSize: '11px', color: 'var(--color-forest)' }}>Bill: #{inw.supplier_bill_no}</div>
+                              {inw.has_discrepancy && (
+                                <div style={{ fontSize: '11px', color: '#B45309', marginTop: '3px', backgroundColor: '#FEF3C7', padding: '3px 6px', borderRadius: '4px' }}>
+                                  <b>Shortage ({inw.discrepancy_qty} units):</b> Billed {inw.billed_qty}, Received {inw.quantity_received}
+                                  {inw.stockist_remarks && (
+                                    <div style={{ fontStyle: 'italic', color: '#78350F', marginTop: '2px' }}>
+                                      "{inw.stockist_remarks}"
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td>
                               <span style={{ fontSize: '12px', fontWeight: 600 }}>{inw.received_by_name}</span>
@@ -1301,26 +1386,39 @@ export const InventoryView = () => {
                             </td>
                             {isAdmin && (
                               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                {isPending ? (
+                                {isPending || isDiscrepancy ? (
                                   <div style={{ display: 'inline-flex', gap: '4px' }}>
                                     <button
                                       onClick={() => handleAuditAction(inw.id, 'VERIFY')}
                                       className="btn btn-xs"
                                       style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0' }}
                                     >
-                                      ✓ Verify
+                                      Verify
                                     </button>
                                     <button
                                       onClick={() => {
-                                        setSelectedInwardForDiscrepancy(inw);
-                                        setDiscrepancyActualQty(String(inw.quantity_received));
-                                        setDiscrepancyNotes('');
+                                        setSelectedInwardForRecount(inw);
+                                        setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
+                                        setRecountNotes('');
                                       }}
                                       className="btn btn-xs"
-                                      style={{ backgroundColor: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5' }}
+                                      style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE' }}
                                     >
-                                      Flag Shortage
+                                      Recount & Correct
                                     </button>
+                                    {isPending && (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedInwardForDiscrepancy(inw);
+                                          setDiscrepancyActualQty(String(inw.quantity_received));
+                                          setDiscrepancyNotes('');
+                                        }}
+                                        className="btn btn-xs"
+                                        style={{ backgroundColor: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5' }}
+                                      >
+                                        Flag Shortage
+                                      </button>
+                                    )}
                                   </div>
                                 ) : (
                                   <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
@@ -1398,6 +1496,77 @@ export const InventoryView = () => {
                 style={{ backgroundColor: '#DC2626', borderColor: '#DC2626' }}
               >
                 Save Discrepancy Flag
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Recount & Stock Correction Sub-Modal (Admin Only) */}
+      {selectedInwardForRecount && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-sheet" style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '15px', color: '#1E40AF' }}>Admin Recount & Stock Correction</h3>
+              <button onClick={() => setSelectedInwardForRecount(null)} className="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize: '12.5px', marginBottom: '12px', backgroundColor: '#EFF6FF', padding: '10px', borderRadius: '6px' }}>
+                Item: <b>{selectedInwardForRecount.product_name}</b> (Bill #{selectedInwardForRecount.supplier_bill_no})
+                <br />
+                Staff Logged: <b>{selectedInwardForRecount.quantity_received} units</b>
+                {selectedInwardForRecount.billed_qty && (
+                  <span> | Supplier Billed: <b>{selectedInwardForRecount.billed_qty} units</b></span>
+                )}
+                {selectedInwardForRecount.stockist_remarks && (
+                  <div style={{ marginTop: '4px', fontStyle: 'italic', color: '#1E40AF' }}>
+                    Staff Remark: "{selectedInwardForRecount.stockist_remarks}"
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Actual Recounted Physical Quantity (Admin Verified) *</label>
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  className="form-input"
+                  value={recountCorrectedQty}
+                  onChange={(e) => setRecountCorrectedQty(e.target.value)}
+                />
+                {recountCorrectedQty !== '' && (
+                  <div style={{ fontSize: '12px', marginTop: '4px', fontWeight: 600, color: parseFloat(recountCorrectedQty) - selectedInwardForRecount.quantity_received >= 0 ? '#166534' : '#991B1B' }}>
+                    Inventory Adjustment: {parseFloat(recountCorrectedQty) - selectedInwardForRecount.quantity_received >= 0 ? '+' : ''}
+                    {Math.round((parseFloat(recountCorrectedQty) - selectedInwardForRecount.quantity_received) * 1000) / 1000} units to active stock.
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Admin Audit & Recount Justification *</label>
+                <textarea
+                  rows={2}
+                  required
+                  className="form-input"
+                  placeholder="e.g. Physical carton recounted by Admin; verified 100 units received (staff miscounted inner packet)."
+                  value={recountNotes}
+                  onChange={(e) => setRecountNotes(e.target.value)}
+                  style={{ fontSize: '12px' }}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setSelectedInwardForRecount(null)} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAuditAction(selectedInwardForRecount.id, 'CORRECT_QUANTITY', null, recountNotes, recountCorrectedQty)}
+                disabled={!recountCorrectedQty}
+                className="btn btn-primary"
+                style={{ backgroundColor: '#1E40AF', borderColor: '#1E40AF' }}
+              >
+                Apply Recount & Correct Inventory
               </button>
             </div>
           </div>

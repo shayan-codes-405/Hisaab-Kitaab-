@@ -103,16 +103,24 @@ def notify_stock_inward(
     supplier_name: str,
     supplier_bill_no: str,
     auth_type: str,
-    declaration: Optional[str] = None
+    declaration: Optional[str] = None,
+    discrepancy_info: Optional[dict] = None
 ) -> dict:
-    """Instant alert triggered within 0-5s when staff logs stock inward."""
+    """Instant alert triggered within 0-5s when staff logs stock inward, including discrepancy statements if flagged."""
     phone, owner_name = get_admin_phone_and_name()
     if not phone:
         return {"success": False, "message": "No admin phone configured"}
 
     qty_str = f"{int(quantity)}" if float(quantity).is_integer() else f"{quantity}"
     
-    if auth_type == "EMERGENCY_OVERRIDE":
+    if discrepancy_info and discrepancy_info.get("shortage", 0) > 0:
+        notes_snippet = f" Reason: \"{discrepancy_info['notes'][:60]}\"" if discrepancy_info.get("notes") else ""
+        msg = (
+            f"Hisaab-Kitaab Alert: {staff_name} logged Inward of {qty_str} units of '{product_name}' "
+            f"(Bill #{supplier_bill_no}). SHORTAGE FLAGGED: Supplier billed {discrepancy_info['billed_qty']}, "
+            f"received {qty_str} (-{discrepancy_info['shortage']} short).{notes_snippet} Please audit in Stock Tray."
+        )
+    elif auth_type == "EMERGENCY_OVERRIDE":
         decl_snippet = f" Note: \"{declaration[:60]}\"" if declaration else ""
         msg = (
             f"Hisaab-Kitaab Alert: {staff_name} logged Emergency Restock of {qty_str} units of "

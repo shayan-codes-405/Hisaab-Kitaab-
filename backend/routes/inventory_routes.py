@@ -73,10 +73,14 @@ class StockInwardRequest(BaseModel):
     authorization_type: str = "NORMAL"  # "NORMAL", "SMS_OTP", "EMERGENCY_OVERRIDE"
     otp: Optional[str] = ""
     emergency_declaration: Optional[str] = ""
+    has_discrepancy: Optional[bool] = False
+    billed_qty: Optional[float] = None
+    stockist_remarks: Optional[str] = ""
 
 class InwardAuditRequest(BaseModel):
-    action: str = Field(..., pattern="^(VERIFY|DISCREPANCY)$")
+    action: str = Field(..., pattern="^(VERIFY|DISCREPANCY|CORRECT_QUANTITY)$")
     actual_bill_qty: Optional[float] = None
+    corrected_qty: Optional[float] = None
     audit_notes: Optional[str] = ""
 
 @router.get("")
@@ -331,6 +335,23 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
 
     products_col.update_one({"_id": p["_id"]}, {"$set": update_data})
 
+    # Check if stockist flagged an arrival discrepancy on supplier bill
+    has_discrepancy = bool(data.has_discrepancy)
+    billed_qty = float(data.billed_qty) if data.billed_qty is not None else float(data.quantity)
+    shortage_qty = round(billed_qty - float(data.quantity), 3) if has_discrepancy else 0.0
+    stockist_remarks = (data.stockist_remarks or "").strip()
+    
+    inward_status = "PENDING_AUDIT"
+    discrepancy_info = None
+    if has_discrepancy and shortage_qty > 0:
+        inward_status = "FLAGGED_DISCREPANCY"
+        discrepancy_info = {
+            "billed_qty": billed_qty,
+            "received_qty": float(data.quantity),
+            "shortage": shortage_qty,
+            "notes": stockist_remarks
+        }
+
     # Create stock_inwards record
     inward_doc = {
         "product_id": p["_id"],
@@ -346,7 +367,11 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
         "received_by_role": user.get("role", "staff"),
         "authorization_type": auth_type,
         "emergency_declaration": data.emergency_declaration.strip() if data.emergency_declaration else "",
-        "status": "PENDING_AUDIT",
+        "has_discrepancy": has_discrepancy,
+        "billed_qty": billed_qty,
+        "discrepancy_qty": shortage_qty,
+        "stockist_remarks": stockist_remarks,
+        "status": inward_status,
         "created_at": datetime.now(timezone.utc),
         "cron_reminder_sent": False
     }
@@ -355,6 +380,9 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
 
     # Record in stock movement ledger
     ref_text = f"Inward: {data.quantity} {p.get('unit', 'Pcs')} from {clean_supp_name} (Bill #{clean_bill_no}) [{auth_type}]"
+    if has_discrepancy and shortage_qty > 0:
+        ref_text += f" [Shortage reported: {shortage_qty} vs Billed {billed_qty}]"
+
     stock_movements_col.insert_one({
         "product_id": p["_id"],
         "product_name": p["name"],
@@ -369,7 +397,7 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
         "created_at": datetime.now(timezone.utc)
     })
 
-    # Dispatch instant alert SMS to Store Owner
+    # Dispatch instant alert SMS to Store Owner (includes discrepancy statement if flagged)
     sms_feedback = notify_stock_inward(
         staff_name=staff_name,
         product_name=p["name"],
@@ -377,7 +405,8 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
         supplier_name=clean_supp_name,
         supplier_bill_no=clean_bill_no,
         auth_type=auth_type,
-        declaration=data.emergency_declaration
+        declaration=data.emergency_declaration,
+        discrepancy_info=discrepancy_info
     )
 
     return {
@@ -395,7 +424,7 @@ def audit_stock_inward(
     data: InwardAuditRequest,
     admin_user: dict = Depends(require_admin)
 ):
-    """Admin verifies inward or flags discrepancy against physical supplier bill."""
+    """Admin-only: verifies inward, approves shortage, or edits/recounts quantity and corrects inventory."""
     try:
         inw = stock_inwards_col.find_one({"_id": ObjectId(inward_id)})
         if not inw:
@@ -421,6 +450,52 @@ def audit_stock_inward(
             }
         )
         return {"success": True, "message": f"Inward for {inw['product_name']} marked as VERIFIED."}
+
+    elif action == "CORRECT_QUANTITY":
+        # Admin physical recount / adjustment: only Admin has right to edit and adjust inventory stock
+        corrected = float(data.corrected_qty if data.corrected_qty is not None else logged_qty)
+        delta = round(corrected - logged_qty, 3) # e.g. Akash logged 95, Admin counts 100 -> delta = +5
+        
+        # Adjust product stock_qty by delta
+        updated_prod = products_col.find_one_and_update(
+            {"_id": inw["product_id"]},
+            {"$inc": {"stock_qty": delta}},
+            return_document=True
+        )
+        new_balance = updated_prod.get("stock_qty", 0.0) if updated_prod else 0.0
+
+        audit_data = {
+            "status": "VERIFIED",
+            "quantity_received": corrected,
+            "stock_after": inw.get("stock_after", 0.0) + delta,
+            "audited_by": admin_user.get("username", "admin"),
+            "audited_by_name": admin_user.get("full_name", "Admin"),
+            "audited_at": now_utc,
+            "actual_bill_qty": corrected,
+            "discrepancy_qty": 0.0,
+            "audit_notes": data.audit_notes or f"Admin recount correction: adjusted from {logged_qty} to {corrected}."
+        }
+        stock_inwards_col.update_one({"_id": inw["_id"]}, {"$set": audit_data})
+
+        # Permanent recount record in movement ledger
+        stock_movements_col.insert_one({
+            "product_id": inw["product_id"],
+            "product_name": inw["product_name"],
+            "sku": inw.get("sku", ""),
+            "movement_type": "ADMIN_STOCK_RECOUNT",
+            "quantity_delta": delta,
+            "stock_after": new_balance,
+            "reference": f"Admin Recount: Corrected Bill #{inw.get('supplier_bill_no')} from {logged_qty} to {corrected} ({'+' if delta >= 0 else ''}{delta} units)",
+            "created_by": admin_user.get("username", "admin"),
+            "staff_name": admin_user.get("full_name", "Admin"),
+            "created_at": now_utc
+        })
+
+        return {
+            "success": True,
+            "message": f"Stock inward and inventory corrected to {corrected} units by Admin.",
+            "new_stock": new_balance
+        }
 
     elif action == "DISCREPANCY":
         actual_qty = float(data.actual_bill_qty if data.actual_bill_qty is not None else logged_qty)
