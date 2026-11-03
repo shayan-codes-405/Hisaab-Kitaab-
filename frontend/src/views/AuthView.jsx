@@ -340,36 +340,52 @@ export const AuthView = () => {
           )}
 
           {/* ================================================================ */}
-          {/* MODE 2: FORGOT PASSWORD (FOR BOTH ADMIN & EMPLOYEE)             */}
+          {/* MODE 2: FORGOT PASSWORD (ADMINISTRATOR ONLY)                     */}
           {/* ================================================================ */}
           {mode === 'forgot' && (
             <div>
-              <div style={{ marginBottom: '18px' }}>
+              <div style={{ marginBottom: '16px' }}>
                 <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--color-forest)', margin: 0 }}>
-                  Reset Password
+                  Admin Password Recovery
                 </h3>
                 <p style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '3px' }}>
                   {forgotStep === 1
-                    ? 'Enter your username (Admin or Staff) to verify via SMS OTP.'
-                    : `Enter the code sent to registered mobile ending in •••• ${forgotOtpInfo?.phone_hint || '••••'}.`}
+                    ? 'Enter your Admin username to receive an SMS verification code.'
+                    : `Enter the code sent to Admin mobile ending in •••• ${forgotOtpInfo?.phone_hint || '••••'}.`}
                 </p>
+              </div>
+
+              {/* Staff Guidance Notice */}
+              <div
+                style={{
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  color: '#1E40AF',
+                  padding: '9px 12px',
+                  borderRadius: '6px',
+                  fontSize: '11.5px',
+                  marginBottom: '16px',
+                  lineHeight: '1.4'
+                }}
+              >
+                ℹ️ <b>Employee Notice:</b> Staff passwords can only be changed by the Store Administrator. If you forgot your password, please ask your store Admin to reset it for you.
               </div>
 
               {/* Step 1: Request OTP by Username */}
               {forgotStep === 1 && (
                 <form onSubmit={handleForgotSendOtp}>
                   <div className="form-group">
-                    <label className="form-label">Account Username</label>
+                    <label className="form-label">Administrator Username</label>
                     <input
                       type="text"
                       required
                       className="form-input"
-                      placeholder="e.g. admin or staff_username"
+                      placeholder="e.g. admin"
                       value={forgotForm.username}
                       onChange={(e) => setForgotForm({ ...forgotForm, username: e.target.value })}
                     />
                     <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '5px' }}>
-                      💡 A 6-digit OTP will be dispatched to your registered phone number via SMS.
+                      💡 A 6-digit OTP will be sent to the business mobile registered with this Admin account.
                     </div>
                   </div>
 
@@ -379,7 +395,7 @@ export const AuthView = () => {
                     className="btn btn-primary"
                     style={{ width: '100%', marginTop: '14px', padding: '10px' }}
                   >
-                    {isSubmitting ? 'Verifying...' : 'Send Verification OTP 📲'}
+                    {isSubmitting ? 'Verifying...' : 'Send Admin OTP 📲'}
                   </button>
 
                   <div style={{ textAlign: 'center', marginTop: '16px' }}>

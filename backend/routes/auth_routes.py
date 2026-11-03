@@ -398,26 +398,14 @@ def toggle_staff_status(staff_id: str, admin_user: dict = Depends(require_admin)
 
 @router.delete("/staff/{staff_id}")
 def delete_staff_account(staff_id: str, admin_user: dict = Depends(require_admin)):
-    """Admin-only: Remove a staff account from this business."""
-    biz = get_business_for_user(admin_user)
-    biz_id = str(biz.get("_id"))
-
-    try:
-        target = users_col.find_one({"_id": ObjectId(staff_id)})
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid staff ID format.")
-
-    if not target or target.get("business_id") != biz_id:
-        raise HTTPException(status_code=404, detail="Staff account not found under your business.")
-
-    if target.get("role") == "admin":
-        raise HTTPException(status_code=400, detail="Cannot delete primary administrator.")
-
-    users_col.delete_one({"_id": ObjectId(staff_id)})
-    return {
-        "success": True,
-        "message": f"Staff account '{target['username']}' permanently removed."
-    }
+    """
+    Permanent deletion is blocked to preserve historical ledger audit logs, invoices, and stock movements.
+    Store admins should deactivate the account instead.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Permanent staff deletion is disabled to preserve audit logs and transaction history. Please deactivate the account instead."
+    )
 
 @router.post("/staff/{staff_id}/reset-password")
 def admin_reset_staff_password(
@@ -457,8 +445,8 @@ def admin_reset_staff_password(
 @router.post("/forgot-password/send-otp")
 def forgot_password_send_otp(data: ForgotPasswordOtpRequest):
     """
-    Public Endpoint: Generates a 6-digit OTP and dispatches it to the user's registered phone
-    (Admin or Staff) for secure self-service password recovery.
+    Public Endpoint: Generates a 6-digit OTP and dispatches it to the Administrator's registered phone
+    for secure self-service password recovery. Staff members must contact their store Administrator.
     """
     clean_username = data.username.strip().lower()
     user = users_col.find_one({"username": clean_username})
@@ -468,18 +456,21 @@ def forgot_password_send_otp(data: ForgotPasswordOtpRequest):
             detail=f"Account with username '{clean_username}' was not found. Please verify your username."
         )
 
+    # Restrict to Admin only: Staff accounts cannot be reset via public OTP
+    if user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Staff passwords can only be reset by your Store Administrator. Please contact your store Admin to update your password."
+        )
+
     # Determine phone number
     biz = get_business_for_user(user)
     recipient_phone = (user.get("phone") or biz.get("phone") or "").strip()
 
     if not recipient_phone:
-        if user.get("role") == "admin":
-            detail_msg = "No registered mobile number found for this Admin account or business. Please configure mobile in business settings."
-        else:
-            detail_msg = "No phone number is registered for this staff account. Please contact your store Administrator to reset your password directly from the Staff Management portal."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=detail_msg
+            detail="No registered mobile number found for this Admin account or business. Please configure mobile in business settings."
         )
 
     # Generate 6-digit OTP
@@ -499,7 +490,7 @@ def forgot_password_send_otp(data: ForgotPasswordOtpRequest):
 
     # Dispatch SMS
     b_name = biz.get("business_name", "HisabKitab")
-    custom_msg = f"HisabKitab Security: Your password reset verification code for {b_name} is {otp_code}. Valid for 10 minutes. Do not share with anyone."
+    custom_msg = f"HisabKitab Security: Your Admin password reset verification code for {b_name} is {otp_code}. Valid for 10 minutes. Do not share with anyone."
     dispatch_res = dispatch_otp_sms(
         recipient_phone,
         otp_code,
@@ -513,7 +504,7 @@ def forgot_password_send_otp(data: ForgotPasswordOtpRequest):
     phone_hint = recipient_phone[-4:] if len(recipient_phone) >= 4 else recipient_phone
     return {
         "success": True,
-        "message": f"Verification code sent to registered mobile ending in •••• {phone_hint}.",
+        "message": f"Verification code sent to Admin mobile ending in •••• {phone_hint}.",
         "phone_hint": phone_hint,
         "demo_otp": dispatch_res.get("otp") if dispatch_res.get("mode") == "demo" else None
     }
@@ -521,7 +512,7 @@ def forgot_password_send_otp(data: ForgotPasswordOtpRequest):
 @router.post("/forgot-password/verify-reset")
 def forgot_password_verify_reset(data: ForgotPasswordResetRequest):
     """
-    Public Endpoint: Validates 6-digit OTP and updates the user's password.
+    Public Endpoint: Validates 6-digit OTP and updates the Administrator's password.
     """
     clean_username = data.username.strip().lower()
     clean_otp = data.otp.strip()
@@ -545,6 +536,12 @@ def forgot_password_verify_reset(data: ForgotPasswordResetRequest):
             detail="User account not found."
         )
 
+    if user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Staff passwords can only be reset by the Store Administrator."
+        )
+
     # Hash new password and update
     new_hash = hash_password(data.new_password)
     users_col.update_one(
@@ -560,5 +557,5 @@ def forgot_password_verify_reset(data: ForgotPasswordResetRequest):
 
     return {
         "success": True,
-        "message": "Password updated successfully! You can now log in with your new password."
+        "message": "Admin password updated successfully! You can now log in with your new password."
     }

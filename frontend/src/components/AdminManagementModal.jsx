@@ -194,7 +194,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     }
   };
 
-  // Toggle Staff Active/Deactivated
+  // Toggle Staff Active/Deactivated (Safe Soft-Delete to Preserve Historical Logs)
   const handleToggleStatus = async (staffId, currentStatus, name) => {
     try {
       const res = await apiFetch(`/api/auth/staff/${staffId}/toggle-status`, {
@@ -205,26 +205,6 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
         throw new Error(data.detail || 'Failed to update staff status.');
       }
       showToast(data.message, 'info');
-      loadStaff();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
-
-  // Delete Staff Member
-  const handleDeleteStaff = async (staffId, name) => {
-    if (!window.confirm(`Are you sure you want to permanently remove "${name}" from your staff roster?`)) {
-      return;
-    }
-    try {
-      const res = await apiFetch(`/api/auth/staff/${staffId}`, {
-        method: 'DELETE'
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || 'Failed to delete staff member.');
-      }
-      showToast(data.message, 'success');
       loadStaff();
     } catch (err) {
       showToast(err.message, 'error');
@@ -716,17 +696,6 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                   title={isActive ? 'Deactivate staff login access' : 'Reactivate staff login access'}
                                 >
                                   {isActive ? 'Deactivate' : 'Activate'}
-                                </button>
-
-                                {/* Delete Staff Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteStaff(st.id, st.full_name)}
-                                  className="btn btn-ghost btn-sm"
-                                  style={{ fontSize: '12px', color: '#94A3B8', padding: '3px 6px' }}
-                                  title="Permanently remove staff"
-                                >
-                                  🗑️
                                 </button>
                               </div>
                             </td>
