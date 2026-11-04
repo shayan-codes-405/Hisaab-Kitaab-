@@ -234,6 +234,105 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
 # STOCK INWARD SECURITY, HYBRID RESTOCK & AUDIT WORKFLOW
 # ==============================================================================
 
+def ensure_inward_timeline(inw: dict) -> list:
+    """Ensure an inward record has a full, immutable audit event history."""
+    timeline = inw.get("audit_timeline")
+    if timeline and isinstance(timeline, list) and len(timeline) > 0:
+        return timeline
+
+    synthesized = []
+    # 1. Arrival event
+    synthesized.append({
+        "event_id": "EVT-1",
+        "timestamp": inw.get("created_at"),
+        "actor_name": inw.get("received_by_name", "Stockist"),
+        "actor_role": inw.get("received_by_role", "inventory_manager"),
+        "actor_username": inw.get("received_by_id", "staff"),
+        "action": "ARRIVAL_LOGGED",
+        "title": f"Logged delivery of {inw.get('quantity_received')} units",
+        "details": f"Supplier: {inw.get('supplier_name')}, Bill #{inw.get('supplier_bill_no')}" + (
+            f" [Shortage reported on arrival: -{inw.get('discrepancy_qty')} units vs billed {inw.get('billed_qty')}]"
+            if inw.get("discrepancy_qty", 0) > 0 else ""
+        ) + (f" Note: \"{inw.get('stockist_remarks')}\"" if inw.get("stockist_remarks") else "")
+    })
+
+    # 2. Statement / Appeal event if present
+    if inw.get("stockist_statement"):
+        synthesized.append({
+            "event_id": "EVT-2",
+            "timestamp": inw.get("stockist_statement_at") or inw.get("created_at"),
+            "actor_name": inw.get("stockist_statement_by_name") or inw.get("received_by_name", "Stockist"),
+            "actor_role": "inventory_manager",
+            "actor_username": inw.get("stockist_statement_by", "staff"),
+            "action": "STOCKIST_STATEMENT",
+            "title": "Stockist submitted explanation / appeal",
+            "details": inw.get("stockist_statement")
+        })
+
+    # 3. Admin audit event if present
+    if inw.get("audited_at"):
+        decision = inw.get("admin_decision") or inw.get("status")
+        title = (
+            "Store Owner verified delivery" if decision == "VERIFIED" else
+            "Store Owner accepted supplier shortage" if decision == "ACCEPTED" else
+            "Store Owner disputed shortage (claimed staff error)" if decision == "REJECTED" else
+            f"Admin Decision: {decision}"
+        )
+        synthesized.append({
+            "event_id": f"EVT-{len(synthesized) + 1}",
+            "timestamp": inw.get("audited_at"),
+            "actor_name": inw.get("audited_by_name", "Store Owner"),
+            "actor_role": "admin",
+            "actor_username": inw.get("audited_by", "admin"),
+            "action": "ADMIN_DECISION",
+            "title": title,
+            "details": inw.get("admin_decision_notes") or inw.get("audit_notes") or "Delivery audit processed."
+        })
+
+    return synthesized
+
+@router.get("/inward/alerts")
+def get_inward_alerts(user: dict = Depends(require_staff_or_admin)):
+    """Retrieve in-app alert badges and action items for inward disputes and audit tasks."""
+    is_admin = user.get("role") == "admin"
+    username = user.get("username")
+
+    if is_admin:
+        # Items needing Admin review, recount, or where stockist appealed
+        disputed = list(stock_inwards_col.find({
+            "$or": [
+                {"admin_review_pending": True},
+                {"status": "FLAGGED_DISCREPANCY"}
+            ]
+        }).sort("created_at", -1))
+        
+        pending_audit = list(stock_inwards_col.find({"status": "PENDING_AUDIT"}).sort("created_at", -1))
+        
+        return {
+            "is_admin": True,
+            "disputed_count": len(disputed),
+            "pending_audit_count": len(pending_audit),
+            "total_alert_count": len(disputed) + (1 if len(pending_audit) > 0 else 0),
+            "action_inwards": serialize_doc(disputed[:5])
+        }
+    else:
+        # Stockist: disputed records needing explanation/appeal or where Admin rejected initial claim
+        my_inwards = list(stock_inwards_col.find({
+            "status": "FLAGGED_DISCREPANCY",
+            "$or": [
+                {"received_by_name": user.get("full_name")},
+                {"received_by_id": str(user.get("_id") or user.get("id"))},
+                {"received_by_id": username}
+            ]
+        }).sort("created_at", -1))
+
+        return {
+            "is_admin": False,
+            "disputed_count": len(my_inwards),
+            "total_alert_count": len(my_inwards),
+            "action_inwards": serialize_doc(my_inwards)
+        }
+
 @router.get("/inwards")
 def list_stock_inwards(
     status_filter: Optional[str] = Query("all", pattern="^(all|PENDING_AUDIT|VERIFIED|FLAGGED_DISCREPANCY)$"),
@@ -245,7 +344,11 @@ def list_stock_inwards(
     if status_filter != "all":
         query["status"] = status_filter
     cursor = stock_inwards_col.find(query).sort("created_at", -1).limit(limit)
-    return serialize_doc(list(cursor))
+    records = []
+    for doc in cursor:
+        doc["audit_timeline"] = ensure_inward_timeline(doc)
+        records.append(doc)
+    return serialize_doc(records)
 
 @router.get("/inward/status/{product_id}")
 def get_product_inward_audit_status(product_id: str, user: dict = Depends(require_staff_or_admin)):
@@ -428,7 +531,7 @@ def audit_stock_inward(
     data: InwardAuditRequest,
     admin_user: dict = Depends(require_admin)
 ):
-    """Admin-only: verifies inward, approves shortage, or edits/recounts quantity and corrects inventory."""
+    """Admin-only: verifies inward, approves shortage, disputes claim, or recounts physical inventory."""
     try:
         inw = stock_inwards_col.find_one({"_id": ObjectId(inward_id)})
         if not inw:
@@ -439,8 +542,20 @@ def audit_stock_inward(
     action = data.action.upper()
     logged_qty = float(inw.get("quantity_received", 0.0))
     now_utc = datetime.now(timezone.utc)
+    existing_timeline = ensure_inward_timeline(inw)
 
     if action == "VERIFY":
+        audit_note = data.audit_notes or "Supplier invoice verified and matched physical delivery."
+        existing_timeline.append({
+            "event_id": f"EVT-{len(existing_timeline) + 1}",
+            "timestamp": now_utc,
+            "actor_name": admin_user.get("full_name", "Admin"),
+            "actor_role": "admin",
+            "actor_username": admin_user.get("username", "admin"),
+            "action": "ADMIN_VERIFIED",
+            "title": "Delivery verified & approved",
+            "details": audit_note
+        })
         stock_inwards_col.update_one(
             {"_id": inw["_id"]},
             {
@@ -449,7 +564,10 @@ def audit_stock_inward(
                     "audited_by": admin_user.get("username", "admin"),
                     "audited_by_name": admin_user.get("full_name", "Admin"),
                     "audited_at": now_utc,
-                    "audit_notes": data.audit_notes or "Supplier invoice verified and matched."
+                    "audit_notes": audit_note,
+                    "stockist_appeal_needed": False,
+                    "admin_review_pending": False,
+                    "audit_timeline": existing_timeline
                 }
             }
         )
@@ -468,8 +586,21 @@ def audit_stock_inward(
         )
         new_balance = updated_prod.get("stock_qty", 0.0) if updated_prod else 0.0
 
+        audit_note = data.audit_notes or f"Admin recount correction: adjusted from {logged_qty} to {corrected} units."
+        existing_timeline.append({
+            "event_id": f"EVT-{len(existing_timeline) + 1}",
+            "timestamp": now_utc,
+            "actor_name": admin_user.get("full_name", "Admin"),
+            "actor_role": "admin",
+            "actor_username": admin_user.get("username", "admin"),
+            "action": "ADMIN_RECOUNT_RESOLVED",
+            "title": f"Physical recount resolved: adjusted to {corrected} units ({'+' if delta >= 0 else ''}{delta} delta)",
+            "details": audit_note
+        })
+
         audit_data = {
             "status": "VERIFIED",
+            "admin_decision": "RESOLVED_RECOUNT",
             "quantity_received": corrected,
             "stock_after": inw.get("stock_after", 0.0) + delta,
             "audited_by": admin_user.get("username", "admin"),
@@ -477,7 +608,11 @@ def audit_stock_inward(
             "audited_at": now_utc,
             "actual_bill_qty": corrected,
             "discrepancy_qty": 0.0,
-            "audit_notes": data.audit_notes or f"Admin recount correction: adjusted from {logged_qty} to {corrected}."
+            "audit_notes": audit_note,
+            "admin_decision_notes": audit_note,
+            "stockist_appeal_needed": False,
+            "admin_review_pending": False,
+            "audit_timeline": existing_timeline
         }
         stock_inwards_col.update_one({"_id": inw["_id"]}, {"$set": audit_data})
 
@@ -504,6 +639,18 @@ def audit_stock_inward(
     elif action == "DISCREPANCY":
         actual_qty = float(data.actual_bill_qty if data.actual_bill_qty is not None else logged_qty)
         shortage_qty = round(actual_qty - logged_qty, 3)
+        audit_note = data.audit_notes or f"Discrepancy: Physical bill shows {actual_qty}, logged was {logged_qty}."
+
+        existing_timeline.append({
+            "event_id": f"EVT-{len(existing_timeline) + 1}",
+            "timestamp": now_utc,
+            "actor_name": admin_user.get("full_name", "Admin"),
+            "actor_role": "admin",
+            "actor_username": admin_user.get("username", "admin"),
+            "action": "ADMIN_FLAG_SHORTAGE",
+            "title": f"Admin flagged delivery shortage (-{shortage_qty} units)",
+            "details": audit_note
+        })
         
         audit_data = {
             "status": "FLAGGED_DISCREPANCY",
@@ -512,7 +659,10 @@ def audit_stock_inward(
             "audited_at": now_utc,
             "actual_bill_qty": actual_qty,
             "discrepancy_qty": shortage_qty,
-            "audit_notes": data.audit_notes or f"Discrepancy: Physical bill shows {actual_qty}, logged was {logged_qty}."
+            "audit_notes": audit_note,
+            "stockist_appeal_needed": True,
+            "admin_review_pending": False,
+            "audit_timeline": existing_timeline
         }
         stock_inwards_col.update_one({"_id": inw["_id"]}, {"$set": audit_data})
 
@@ -538,6 +688,16 @@ def audit_stock_inward(
 
     elif action == "ACCEPT_EXPLANATION":
         audit_note = data.audit_notes or "Store Owner accepted stockist explanation: supplier shortage confirmed (staff count verified accurate)."
+        existing_timeline.append({
+            "event_id": f"EVT-{len(existing_timeline) + 1}",
+            "timestamp": now_utc,
+            "actor_name": admin_user.get("full_name", "Admin"),
+            "actor_role": "admin",
+            "actor_username": admin_user.get("username", "admin"),
+            "action": "ADMIN_ACCEPT_SHORTAGE",
+            "title": "Store Owner accepted supplier shortage",
+            "details": audit_note
+        })
         stock_inwards_col.update_one(
             {"_id": inw["_id"]},
             {
@@ -547,7 +707,10 @@ def audit_stock_inward(
                     "admin_decision_notes": audit_note,
                     "audited_by": admin_user.get("username", "admin"),
                     "audited_by_name": admin_user.get("full_name", "Admin"),
-                    "audited_at": now_utc
+                    "audited_at": now_utc,
+                    "stockist_appeal_needed": False,
+                    "admin_review_pending": False,
+                    "audit_timeline": existing_timeline
                 }
             }
         )
@@ -570,15 +733,29 @@ def audit_stock_inward(
 
     elif action == "REJECT_EXPLANATION":
         audit_note = data.audit_notes or "Store Owner rejected stockist explanation: staff miscount or unjustified claim."
+        existing_timeline.append({
+            "event_id": f"EVT-{len(existing_timeline) + 1}",
+            "timestamp": now_utc,
+            "actor_name": admin_user.get("full_name", "Admin"),
+            "actor_role": "admin",
+            "actor_username": admin_user.get("username", "admin"),
+            "action": "ADMIN_DISPUTE_STATEMENT",
+            "title": "Store Owner disputed shortage (claimed staff error)",
+            "details": audit_note
+        })
         stock_inwards_col.update_one(
             {"_id": inw["_id"]},
             {
                 "$set": {
+                    "status": "FLAGGED_DISCREPANCY",
                     "admin_decision": "REJECTED",
                     "admin_decision_notes": audit_note,
                     "audited_by": admin_user.get("username", "admin"),
                     "audited_by_name": admin_user.get("full_name", "Admin"),
-                    "audited_at": now_utc
+                    "audited_at": now_utc,
+                    "stockist_appeal_needed": True,
+                    "admin_review_pending": False,
+                    "audit_timeline": existing_timeline
                 }
             }
         )
@@ -596,7 +773,7 @@ def audit_stock_inward(
         })
         return {
             "success": True,
-            "message": f"Stockist explanation rejected for Bill #{inw.get('supplier_bill_no')}. Counting error flagged in stockist audit performance."
+            "message": f"Stockist explanation disputed for Bill #{inw.get('supplier_bill_no')}. Alert sent to stockist for review."
         }
 
 @router.post("/inward/{inward_id}/statement")
@@ -605,7 +782,7 @@ def submit_stockist_statement(
     data: StockistStatementRequest,
     user: dict = Depends(require_staff_or_admin)
 ):
-    """Allows a stockist/staff member to submit or update their explanation statement on an inward with shortage/discrepancy."""
+    """Allows a stockist/staff member to submit or appeal their explanation statement on an inward with shortage/discrepancy."""
     try:
         inw = stock_inwards_col.find_one({"_id": ObjectId(inward_id)})
         if not inw:
@@ -616,6 +793,19 @@ def submit_stockist_statement(
     stmt = data.statement.strip()
     now_utc = datetime.now(timezone.utc)
     staff_name = user.get("full_name") or user.get("username", "Stockist")
+    existing_timeline = ensure_inward_timeline(inw)
+
+    is_appeal = inw.get("admin_decision") == "REJECTED" or inw.get("stockist_appeal_needed", False)
+    existing_timeline.append({
+        "event_id": f"EVT-{len(existing_timeline) + 1}",
+        "timestamp": now_utc,
+        "actor_name": staff_name,
+        "actor_role": user.get("role", "inventory_manager"),
+        "actor_username": user.get("username", "staff"),
+        "action": "STOCKIST_APPEAL" if is_appeal else "STOCKIST_STATEMENT",
+        "title": "Stockist submitted formal appeal / counter-explanation" if is_appeal else "Stockist submitted arrival explanation",
+        "details": stmt
+    })
 
     stock_inwards_col.update_one(
         {"_id": inw["_id"]},
@@ -626,7 +816,10 @@ def submit_stockist_statement(
                 "stockist_statement_at": now_utc,
                 "stockist_statement_by": user.get("username"),
                 "stockist_statement_by_name": staff_name,
-                "admin_decision": "PENDING_REVIEW"
+                "admin_decision": "PENDING_REVIEW",
+                "stockist_appeal_needed": False,
+                "admin_review_pending": True,
+                "audit_timeline": existing_timeline
             }
         }
     )
@@ -639,23 +832,15 @@ def submit_stockist_statement(
         "movement_type": "STOCKIST_STATEMENT",
         "quantity_delta": 0.0,
         "stock_after": inw.get("stock_after", 0.0),
-        "reference": f"Stockist Explanation for Bill #{inw.get('supplier_bill_no')}: {stmt[:80]}",
+        "reference": f"Stockist {'Appeal' if is_appeal else 'Explanation'} for Bill #{inw.get('supplier_bill_no')}: {stmt[:80]}",
         "created_by": user.get("username", "staff"),
         "staff_name": staff_name,
         "created_at": now_utc
     })
 
-    # Notify store owner via SMS
-    notify_stockist_statement(
-        staff_name=staff_name,
-        product_name=inw.get("product_name", "Product"),
-        supplier_bill_no=inw.get("supplier_bill_no", "Bill"),
-        statement=stmt
-    )
-
     return {
         "success": True,
-        "message": "Explanation statement submitted successfully. Store Owner has been alerted for audit review.",
+        "message": "Statement submitted successfully. Store Owner will see this in the audit queue.",
         "statement": stmt
     }
 
