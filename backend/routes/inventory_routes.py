@@ -661,16 +661,29 @@ def submit_stockist_statement(
 
 @router.get("/stockist-performance")
 def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
-    """Calculate and return stock audit accuracy and performance metrics for all stockists/staff."""
-    staff_users = list(users_col.find(
-        {"role": {"$in": ["inventory_manager", "staff"]}},
+    """Calculate and return stock audit accuracy and performance metrics strictly for Stockists/Storekeepers."""
+    # Find all users with role 'inventory_manager' (Storekeeper / Stockist)
+    inward_staff_ids = stock_inwards_col.distinct("received_by_id")
+    inward_staff_names = stock_inwards_col.distinct("received_by_name")
+    
+    # Filter: ONLY include users who are inventory_manager OR who actually have recorded inwards
+    # Exclude pure billing cashiers (role == 'staff' with 0 inwards)
+    candidate_users = list(users_col.find(
+        {
+            "$or": [
+                {"role": "inventory_manager"},
+                {"_id": {"$in": [ObjectId(sid) for sid in inward_staff_ids if ObjectId.is_valid(sid)]}},
+                {"full_name": {"$in": [n for n in inward_staff_names if n]}},
+                {"username": {"$in": [n for n in inward_staff_names if n]}}
+            ]
+        },
         {"password_hash": 0}
     ))
-    
+
     inward_records = list(stock_inwards_col.find({}))
     
     performance_list = []
-    for su in staff_users:
+    for su in candidate_users:
         u_id = str(su["_id"])
         u_name = su.get("username")
         f_name = su.get("full_name") or u_name
@@ -684,6 +697,10 @@ def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
             or inw.get("stockist_statement_by") == u_name
         ]
         
+        # If user is not an inventory_manager AND has 0 inwards, strictly exclude them
+        if su.get("role") != "inventory_manager" and len(user_inwards) == 0:
+            continue
+
         total = len(user_inwards)
         verified = sum(1 for inw in user_inwards if inw.get("status") == "VERIFIED" and inw.get("admin_decision") != "REJECTED")
         accepted = sum(1 for inw in user_inwards if inw.get("admin_decision") == "ACCEPTED")
@@ -714,7 +731,8 @@ def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
             "staff_id": u_id,
             "username": u_name,
             "full_name": f_name,
-            "role": su.get("role", "staff"),
+            "role": su.get("role", "inventory_manager"),
+            "role_title": "Storekeeper" if su.get("role") == "inventory_manager" else "Staff",
             "total_inwards": total,
             "verified_count": verified,
             "accepted_count": accepted,
@@ -725,6 +743,13 @@ def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
             "rating_text": rating_text,
             "rating_color": rating_color
         })
+
+    # If the requester is a stockist/staff (not admin), return ONLY their personal metrics
+    if user.get("role") != "admin":
+        curr_u = user.get("username")
+        curr_id = str(user.get("id") or user.get("_id") or "")
+        filtered = [p for p in performance_list if p["username"] == curr_u or p["staff_id"] == curr_id]
+        return filtered if filtered else performance_list
 
     return performance_list
 

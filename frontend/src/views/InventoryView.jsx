@@ -1336,7 +1336,7 @@ export const InventoryView = () => {
       {/* Admin Stock Inward Audit Tray Modal */}
       {showAuditTrayModal && (
         <div className="modal-backdrop">
-          <div className="modal-sheet modal-sheet-lg" style={{ maxWidth: '950px' }}>
+          <div className="modal-sheet modal-sheet-lg" style={{ maxWidth: '1100px', width: '96vw' }}>
             <div className="modal-header">
               <div>
                 <h3 style={{ margin: 0, fontSize: '16px' }}>Stock Inward Audit Tray</h3>
@@ -1346,28 +1346,85 @@ export const InventoryView = () => {
               </div>
               <button onClick={() => setShowAuditTrayModal(false)} className="btn btn-ghost btn-sm">✕</button>
             </div>
-            <div className="modal-body" style={{ maxHeight: '65vh' }}>
-              {/* Stockist Performance Summary Banner */}
+            <div className="modal-body" style={{ maxHeight: '68vh' }}>
+              {/* Polished Stockist Inward Performance Card */}
               {stockistPerformance.length > 0 && (
-                <div style={{ backgroundColor: '#F8F6F0', border: '1px solid var(--color-stone-light)', borderRadius: '6px', padding: '10px 14px', marginBottom: '14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    borderRadius: '8px',
+                    padding: '12px 18px',
+                    marginBottom: '14px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                     <div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-charcoal)' }}>
-                        Stockist Inward & Audit Performance
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-charcoal)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>{isAdmin ? 'Stockist Inward & Audit Performance' : 'My Stock Inward Performance'}</span>
+                        <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '1px 8px', borderRadius: '10px', backgroundColor: '#F1F5F9', color: '#475569' }}>
+                          Storekeeper
+                        </span>
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
-                        Tracking count accuracy, physical bill matching, and verified statements.
+                      <div style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '2px' }}>
+                        {isAdmin
+                          ? 'Physical receiving count accuracy, supplier invoice matching, and audit ratings for inventory staff.'
+                          : 'Your physical receiving count accuracy and verified arrival records audited by the Store Owner.'}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                       {stockistPerformance.map((sp) => (
-                        <div key={sp.username} style={{ backgroundColor: '#fff', border: '1px solid var(--color-stone-light)', padding: '4px 10px', borderRadius: '4px', fontSize: '11.5px' }}>
-                          <span style={{ fontWeight: 700 }}>{sp.full_name}</span>
-                          <span style={{ margin: '0 5px', color: 'var(--color-muted)' }}>•</span>
-                          <span style={{ fontWeight: 700, color: sp.rating_color }}>{sp.accuracy_rate}% Accuracy</span>
-                          <span style={{ fontSize: '10.5px', color: 'var(--color-muted)', marginLeft: '6px' }}>
-                            ({sp.verified_count} verified, {sp.rejected_count} rejected)
-                          </span>
+                        <div
+                          key={sp.username}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            backgroundColor: '#F8FAFC',
+                            border: '1px solid #E2E8F0',
+                            padding: '6px 14px',
+                            borderRadius: '6px'
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+                              {sp.full_name}
+                            </div>
+                            <div style={{ fontSize: '10.5px', color: '#64748B' }}>
+                              @{sp.username}
+                            </div>
+                          </div>
+
+                          <div style={{ height: '22px', width: '1px', backgroundColor: '#CBD5E1' }} />
+
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 800, color: sp.rating_color }}>
+                              {sp.accuracy_rate}%
+                            </div>
+                            <div style={{ fontSize: '10px', fontWeight: 600, color: sp.rating_color }}>
+                              {sp.rating_text}
+                            </div>
+                          </div>
+
+                          <div style={{ height: '22px', width: '1px', backgroundColor: '#CBD5E1' }} />
+
+                          <div style={{ display: 'flex', gap: '6px', fontSize: '11px' }}>
+                            <span style={{ backgroundColor: '#DCFCE7', color: '#166534', padding: '2px 7px', borderRadius: '4px', fontWeight: 600 }}>
+                              {sp.verified_count} Verified
+                            </span>
+                            {sp.rejected_count > 0 && (
+                              <span style={{ backgroundColor: '#FEE2E2', color: '#991B1B', padding: '2px 7px', borderRadius: '4px', fontWeight: 600 }}>
+                                {sp.rejected_count} Rejected
+                              </span>
+                            )}
+                            {sp.pending_count > 0 && (
+                              <span style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 7px', borderRadius: '4px', fontWeight: 600 }}>
+                                {sp.pending_count} Pending
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1400,18 +1457,18 @@ export const InventoryView = () => {
                   No inward records found for this filter.
                 </div>
               ) : (
-                <div className="ledger-table-container" style={{ border: 'none', boxShadow: 'none' }}>
-                  <table className="ledger-table">
+                <div className="ledger-table-container" style={{ border: '1px solid var(--color-stone-light)', borderRadius: '8px', overflowX: 'auto', maxHeight: '55vh' }}>
+                  <table className="ledger-table" style={{ width: '100%', minWidth: '980px' }}>
                     <thead>
                       <tr>
-                        <th>Date & Time</th>
-                        <th>Product & SKU</th>
-                        <th style={{ textAlign: 'center' }}>Inward Qty</th>
+                        <th style={{ width: '135px' }}>Date & Time</th>
+                        <th style={{ width: '180px' }}>Product & SKU</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Inward Qty</th>
                         <th>Supplier & Bill #</th>
-                        <th>Received By</th>
-                        <th>Auth Mode</th>
-                        <th style={{ textAlign: 'center' }}>Status</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
+                        <th style={{ width: '110px' }}>Received By</th>
+                        <th style={{ width: '105px' }}>Auth Mode</th>
+                        <th style={{ width: '115px', textAlign: 'center' }}>Status</th>
+                        <th style={{ width: '220px', textAlign: 'right', paddingRight: '14px' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1498,54 +1555,31 @@ export const InventoryView = () => {
                                 {isVerified ? 'Verified' : isDiscrepancy ? `Shortage (${inw.discrepancy_qty})` : 'Pending Audit'}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', paddingRight: '14px' }}>
                               {isAdmin ? (
-                                isPending || isDiscrepancy ? (
-                                  <div style={{ display: 'inline-flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                    {/* Accept / Reject Stockist Statement */}
-                                    {(inw.stockist_statement || inw.stockist_remarks || isDiscrepancy) && (
-                                      <>
-                                        {inw.admin_decision !== 'ACCEPTED' && (
-                                          <button
-                                            onClick={() => {
-                                              setSelectedInwardForDecision(inw);
-                                              setDecisionActionType('ACCEPT_EXPLANATION');
-                                              setDecisionNotesInput('');
-                                            }}
-                                            className="btn btn-xs"
-                                            style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', fontWeight: 600 }}
-                                            title="Accept stockist statement (genuine supplier shortage, +1 stockist accuracy)"
-                                          >
-                                            Accept
-                                          </button>
-                                        )}
-                                        {inw.admin_decision !== 'REJECTED' && (
-                                          <button
-                                            onClick={() => {
-                                              setSelectedInwardForDecision(inw);
-                                              setDecisionActionType('REJECT_EXPLANATION');
-                                              setDecisionNotesInput('');
-                                            }}
-                                            className="btn btn-xs"
-                                            style={{ backgroundColor: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', fontWeight: 600 }}
-                                            title="Reject stockist statement (staff counting error, -1 stockist accuracy)"
-                                          >
-                                            Reject
-                                          </button>
-                                        )}
-                                      </>
-                                    )}
-
-                                    {/* Standard Verify */}
+                                isPending ? (
+                                  /* Pending Audit State (Normal delivery waiting check) */
+                                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                     <button
                                       onClick={() => handleAuditAction(inw.id, 'VERIFY')}
                                       className="btn btn-xs"
-                                      style={{ backgroundColor: '#F3F4F6', color: '#374151', border: '1px solid #D1D5DB' }}
+                                      style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', fontWeight: 600 }}
+                                      title="Verify supplier bill matches physical receipt"
                                     >
                                       Verify
                                     </button>
-
-                                    {/* Recount & Correct */}
+                                    <button
+                                      onClick={() => {
+                                        setSelectedInwardForDiscrepancy(inw);
+                                        setDiscrepancyActualQty(String(inw.quantity_received));
+                                        setDiscrepancyNotes('');
+                                      }}
+                                      className="btn btn-xs"
+                                      style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', fontWeight: 600 }}
+                                      title="Flag shortage on arrival"
+                                    >
+                                      Flag Shortage
+                                    </button>
                                     <button
                                       onClick={() => {
                                         setSelectedInwardForRecount(inw);
@@ -1553,50 +1587,113 @@ export const InventoryView = () => {
                                         setRecountNotes('');
                                       }}
                                       className="btn btn-xs"
-                                      style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE' }}
+                                      style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE', fontWeight: 600 }}
+                                      title="Recount physical inventory and adjust stock"
                                     >
-                                      Recount & Correct
+                                      Recount
                                     </button>
-
-                                    {isPending && (
+                                  </div>
+                                ) : isDiscrepancy ? (
+                                  /* Shortage / Discrepancy State: Clean, non-overlapping actions */
+                                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    {inw.admin_decision !== 'ACCEPTED' && (
                                       <button
                                         onClick={() => {
-                                          setSelectedInwardForDiscrepancy(inw);
-                                          setDiscrepancyActualQty(String(inw.quantity_received));
-                                          setDiscrepancyNotes('');
+                                          setSelectedInwardForDecision(inw);
+                                          setDecisionActionType('ACCEPT_EXPLANATION');
+                                          setDecisionNotesInput('');
                                         }}
                                         className="btn btn-xs"
-                                        style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+                                        style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', fontWeight: 600 }}
+                                        title="Accept shortage: supplier defect verified, stockist count accurate (+1 accuracy)"
                                       >
-                                        Flag Shortage
+                                        Accept Shortage
                                       </button>
                                     )}
+                                    {inw.admin_decision !== 'REJECTED' && (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedInwardForDecision(inw);
+                                          setDecisionActionType('REJECT_EXPLANATION');
+                                          setDecisionNotesInput('');
+                                        }}
+                                        className="btn btn-xs"
+                                        style={{ backgroundColor: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', fontWeight: 600 }}
+                                        title="Reject stockist statement: staff miscount (-1 accuracy)"
+                                      >
+                                        Reject
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        setSelectedInwardForRecount(inw);
+                                        setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
+                                        setRecountNotes('');
+                                      }}
+                                      className="btn btn-xs"
+                                      style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE', fontWeight: 600 }}
+                                      title="Recount physical stock to fix inventory balance"
+                                    >
+                                      Recount
+                                    </button>
                                   </div>
                                 ) : (
-                                  <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
-                                    Audited by {inw.audited_by || 'Admin'}
-                                    {inw.admin_decision === 'ACCEPTED' && ' (Accepted)'}
-                                    {inw.admin_decision === 'REJECTED' && ' (Rejected)'}
-                                  </span>
+                                  /* Already Audited & Verified State */
+                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        padding: '3px 9px',
+                                        borderRadius: '12px',
+                                        backgroundColor: inw.admin_decision === 'REJECTED' ? '#FEE2E2' : '#DCFCE7',
+                                        color: inw.admin_decision === 'REJECTED' ? '#991B1B' : '#166534',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      Audited by {inw.audited_by || 'Admin'}
+                                      {inw.admin_decision === 'ACCEPTED' && ' (Accepted)'}
+                                      {inw.admin_decision === 'REJECTED' && ' (Rejected)'}
+                                    </span>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedInwardForRecount(inw);
+                                        setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
+                                        setRecountNotes('');
+                                      }}
+                                      className="btn btn-ghost btn-xs"
+                                      style={{ fontSize: '10.5px', color: '#6B7280', padding: '2px 6px' }}
+                                      title="Recount stock if physical correction needed"
+                                    >
+                                      Recount
+                                    </button>
+                                  </div>
                                 )
                               ) : (
                                 /* Stockist / Staff Actions */
                                 <div>
-                                  <button
-                                    onClick={() => {
-                                      setSelectedInwardForStatement(inw);
-                                      setStockistStatementInput(inw.stockist_statement || inw.stockist_remarks || '');
-                                    }}
-                                    className="btn btn-xs"
-                                    style={{
-                                      backgroundColor: inw.stockist_statement ? '#EFF6FF' : '#FEF3C7',
-                                      color: inw.stockist_statement ? '#1E40AF' : '#92400E',
-                                      border: inw.stockist_statement ? '1px solid #BFDBFE' : '1px solid #FDE68A',
-                                      fontWeight: 600
-                                    }}
-                                  >
-                                    {inw.stockist_statement ? 'Edit Statement' : 'Submit Statement'}
-                                  </button>
+                                  {isPending || isDiscrepancy ? (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedInwardForStatement(inw);
+                                        setStockistStatementInput(inw.stockist_statement || inw.stockist_remarks || '');
+                                      }}
+                                      className="btn btn-xs"
+                                      style={{
+                                        backgroundColor: inw.stockist_statement ? '#EFF6FF' : '#FEF3C7',
+                                        color: inw.stockist_statement ? '#1E40AF' : '#92400E',
+                                        border: inw.stockist_statement ? '1px solid #BFDBFE' : '1px solid #FDE68A',
+                                        fontWeight: 600,
+                                        padding: '4px 10px'
+                                      }}
+                                    >
+                                      {inw.stockist_statement ? 'Edit Statement' : 'Submit Statement'}
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontSize: '11px', color: '#166534', fontWeight: 600, backgroundColor: '#DCFCE7', padding: '3px 8px', borderRadius: '10px' }}>
+                                      Audited & Verified
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </td>
