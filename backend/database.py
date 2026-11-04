@@ -26,6 +26,8 @@ stock_movements_col = db["stock_movements"]
 sms_logs_col = db["sms_logs"]
 otp_verifications_col = db["otp_verifications"]
 stock_inwards_col = db["stock_inwards"]
+vendor_claims_col = db["vendor_debit_claims"]
+promotional_gifts_col = db["promotional_gifts"]
 
 def init_db_indexes():
     """Ensure all mandatory unique and performance indexes exist."""
@@ -47,6 +49,12 @@ def init_db_indexes():
         stock_inwards_col.create_index([("product_id", ASCENDING), ("created_at", DESCENDING)])
         stock_inwards_col.create_index([("status", ASCENDING)])
         stock_inwards_col.create_index([("created_at", DESCENDING)])
+        # Vendor debit claims & shortage tracking
+        vendor_claims_col.create_index([("supplier_name", ASCENDING), ("status", ASCENDING)])
+        vendor_claims_col.create_index([("created_at", DESCENDING)])
+        # Promotional and festival gift tracking
+        promotional_gifts_col.create_index([("status", ASCENDING), ("created_at", DESCENDING)])
+        promotional_gifts_col.create_index([("allocation_type", ASCENDING)])
         # SMS audit logs
         sms_logs_col.create_index([("created_at", DESCENDING)])
         # 10-minute auto-expiring TTL index for OTP verification codes

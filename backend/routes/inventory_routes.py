@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, status
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-from database import products_col, stock_movements_col, stock_inwards_col, users_col, serialize_doc
+from database import products_col, stock_movements_col, stock_inwards_col, vendor_claims_col, promotional_gifts_col, users_col, serialize_doc
 from auth import require_staff_or_admin, require_admin, require_inventory_or_admin
 from services.stock_alert_service import (
     notify_stock_inward,
@@ -77,6 +77,7 @@ class StockInwardRequest(BaseModel):
     has_discrepancy: Optional[bool] = False
     billed_qty: Optional[float] = None
     stockist_remarks: Optional[str] = ""
+    free_items: Optional[List[dict]] = []
 
 class InwardAuditRequest(BaseModel):
     action: str = Field(..., pattern="^(VERIFY|DISCREPANCY|CORRECT_QUANTITY|ACCEPT_EXPLANATION|REJECT_EXPLANATION)$")
@@ -86,6 +87,27 @@ class InwardAuditRequest(BaseModel):
 
 class StockistStatementRequest(BaseModel):
     statement: str = Field(..., min_length=3)
+
+class GiftAllocationRequest(BaseModel):
+    allocation_type: str = Field(..., pattern="^(CUSTOMER_PROMO_SCHEME|FESTIVAL_DIWALI_VAULT|OWNER_STORE_ASSET|SELLABLE_STOCK)$")
+    min_purchase_qty: Optional[float] = 1.0
+    target_product_id: Optional[str] = ""
+    target_product_name: Optional[str] = ""
+    person_name: Optional[str] = ""
+    contact: Optional[str] = ""
+    vault_notes: Optional[str] = ""
+    selling_price: Optional[float] = 0.0
+    notes: Optional[str] = ""
+
+class GiftVaultActionRequest(BaseModel):
+    action: str = Field(..., pattern="^(HANDED_OVER|DELIVERED|CANCELLED)$")
+    recipient_name: Optional[str] = ""
+    notes: Optional[str] = ""
+
+class VendorClaimSettleRequest(BaseModel):
+    settlement_type: str = Field(..., pattern="^(DEDUCTED_FROM_BILL|CREDIT_NOTE_RECEIVED|CASH_REFUND)$")
+    settlement_ref: Optional[str] = ""
+    notes: Optional[str] = ""
 
 @router.get("")
 def list_products(
@@ -307,12 +329,18 @@ def get_inward_alerts(user: dict = Depends(require_staff_or_admin)):
         }).sort("created_at", -1))
         
         pending_audit = list(stock_inwards_col.find({"status": "PENDING_AUDIT"}).sort("created_at", -1))
+        pending_claims = list(vendor_claims_col.find({"status": "PENDING_SETTLEMENT"}))
+        pending_claims_total = sum(float(c.get("claim_amount", 0.0)) for c in pending_claims)
+        pending_gifts = list(promotional_gifts_col.find({"status": "PENDING_ADMIN_ALLOCATION"}))
         
         return {
             "is_admin": True,
             "disputed_count": len(disputed),
             "pending_audit_count": len(pending_audit),
-            "total_alert_count": len(disputed) + (1 if len(pending_audit) > 0 else 0),
+            "pending_claims_count": len(pending_claims),
+            "pending_claims_total": round(pending_claims_total, 2),
+            "pending_gifts_count": len(pending_gifts),
+            "total_alert_count": len(disputed) + (1 if len(pending_audit) > 0 else 0) + len(pending_claims) + len(pending_gifts),
             "action_inwards": serialize_doc(disputed[:5])
         }
     else:
@@ -329,6 +357,9 @@ def get_inward_alerts(user: dict = Depends(require_staff_or_admin)):
         return {
             "is_admin": False,
             "disputed_count": len(my_inwards),
+            "pending_claims_count": 0,
+            "pending_claims_total": 0.0,
+            "pending_gifts_count": 0,
             "total_alert_count": len(my_inwards),
             "action_inwards": serialize_doc(my_inwards)
         }
@@ -447,6 +478,7 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
     billed_qty = float(data.billed_qty) if data.billed_qty is not None else float(data.quantity)
     shortage_qty = round(billed_qty - float(data.quantity), 3) if has_discrepancy else 0.0
     stockist_remarks = (data.stockist_remarks or "").strip()
+    now_utc = datetime.now(timezone.utc)
     
     inward_status = "PENDING_AUDIT"
     discrepancy_info = None
@@ -458,6 +490,73 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
             "shortage": shortage_qty,
             "notes": stockist_remarks
         }
+
+    # Process any free promotional gifts declared by the stockist
+    free_items_list = []
+    if data.free_items:
+        for idx, fi in enumerate(data.free_items):
+            item_name = str(fi.get("item_name") or "").strip()
+            if not item_name:
+                continue
+            gift_qty = float(fi.get("quantity") or 1.0)
+            challan_ref = str(fi.get("challan_reference") or "").strip()
+            gift_uid = f"GFT-{int(now_utc.timestamp())}-{idx+1}"
+            
+            promotional_gifts_col.insert_one({
+                "gift_id": gift_uid,
+                "inward_id": None,
+                "supplier_name": clean_supp_name,
+                "supplier_bill_no": clean_bill_no,
+                "product_id": p["_id"],
+                "product_name": p["name"],
+                "item_name": item_name,
+                "quantity": gift_qty,
+                "remaining_qty": gift_qty,
+                "challan_reference": challan_ref,
+                "received_by_name": staff_name,
+                "received_by_id": staff_id,
+                "status": "PENDING_ADMIN_ALLOCATION",
+                "allocation_type": None,
+                "scheme_rule": None,
+                "vault_details": None,
+                "created_at": now_utc,
+                "allocated_at": None,
+                "allocated_by": None
+            })
+            free_items_list.append({
+                "gift_id": gift_uid,
+                "item_name": item_name,
+                "quantity": gift_qty,
+                "challan_reference": challan_ref,
+                "status": "PENDING_ADMIN_ALLOCATION"
+            })
+
+    timeline_events = [
+        {
+            "event_id": "EVT-1",
+            "timestamp": now_utc,
+            "actor_name": staff_name,
+            "actor_role": user.get("role", "staff"),
+            "actor_username": user.get("username", "staff"),
+            "action": "ARRIVAL_LOGGED",
+            "title": f"Logged delivery of {data.quantity} units",
+            "details": f"Supplier: {clean_supp_name}, Bill #{clean_bill_no}" + (
+                f" [Shortage reported: {shortage_qty} units vs billed {billed_qty}]" if shortage_qty > 0 else ""
+            ) + (f" Note: \"{stockist_remarks}\"" if stockist_remarks else "")
+        }
+    ]
+    if free_items_list:
+        gift_summary_str = ", ".join([f"{fi.get('quantity')}x {fi.get('item_name')}" for fi in free_items_list])
+        timeline_events.append({
+            "event_id": f"EVT-{len(timeline_events)+1}",
+            "timestamp": now_utc,
+            "actor_name": staff_name,
+            "actor_role": user.get("role", "staff"),
+            "actor_username": user.get("username", "staff"),
+            "action": "FREE_GIFTS_DECLARED",
+            "title": f"Declared {len(free_items_list)} promotional / free gift item(s)",
+            "details": f"Gifts received: {gift_summary_str}. Routed to Store Owner for allocation."
+        })
 
     # Create stock_inwards record
     inward_doc = {
@@ -478,12 +577,20 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
         "billed_qty": billed_qty,
         "discrepancy_qty": shortage_qty,
         "stockist_remarks": stockist_remarks,
+        "free_items": free_items_list,
         "status": inward_status,
-        "created_at": datetime.now(timezone.utc),
-        "cron_reminder_sent": False
+        "created_at": now_utc,
+        "cron_reminder_sent": False,
+        "audit_timeline": timeline_events
     }
     inward_res = stock_inwards_col.insert_one(inward_doc)
     inward_id = str(inward_res.inserted_id)
+
+    if free_items_list:
+        promotional_gifts_col.update_many(
+            {"gift_id": {"$in": [fi["gift_id"] for fi in free_items_list]}},
+            {"$set": {"inward_id": ObjectId(inward_id)}}
+        )
 
     # Record in stock movement ledger
     ref_text = f"Inward: {data.quantity} {p.get('unit', 'Pcs')} from {clean_supp_name} (Bill #{clean_bill_no}) [{auth_type}]"
@@ -698,6 +805,52 @@ def audit_stock_inward(
             "title": "Store Owner accepted supplier shortage",
             "details": audit_note
         })
+
+        # Automatic Vendor Debit Claim creation if there is a shortage
+        shortage_units = float(inw.get("discrepancy_qty") or 0.0)
+        claim_msg = ""
+        if shortage_units > 0:
+            prod = products_col.find_one({"_id": inw["product_id"]})
+            unit_cost = float(prod.get("purchase_price", 0.0)) if prod else float(inw.get("cost_price", 0.0))
+            claim_amount = round(shortage_units * unit_cost, 2)
+            claim_id = f"CLM-{inw.get('supplier_bill_no', 'BILL')}-{int(now_utc.timestamp())}"
+            
+            # Check if claim already created for this inward
+            existing_claim = vendor_claims_col.find_one({"inward_id": inw["_id"]})
+            if not existing_claim:
+                claim_doc = {
+                    "claim_id": claim_id,
+                    "supplier_name": inw.get("supplier_name", "Unknown Supplier"),
+                    "supplier_bill_no": inw.get("supplier_bill_no", ""),
+                    "inward_id": inw["_id"],
+                    "product_id": inw["product_id"],
+                    "product_name": inw.get("product_name", ""),
+                    "sku": inw.get("sku", ""),
+                    "shortage_qty": shortage_units,
+                    "unit_cost": unit_cost,
+                    "claim_amount": claim_amount,
+                    "status": "PENDING_SETTLEMENT",
+                    "notes": audit_note,
+                    "created_by": admin_user.get("username", "admin"),
+                    "created_at": now_utc,
+                    "settled_at": None,
+                    "settlement_type": None,
+                    "settlement_ref": ""
+                }
+                vendor_claims_col.insert_one(claim_doc)
+                claim_msg = f" Generated Vendor Debit Claim #{claim_id} of ₹{claim_amount}."
+                
+                existing_timeline.append({
+                    "event_id": f"EVT-{len(existing_timeline) + 1}",
+                    "timestamp": now_utc,
+                    "actor_name": admin_user.get("full_name", "Admin"),
+                    "actor_role": "admin",
+                    "actor_username": admin_user.get("username", "admin"),
+                    "action": "VENDOR_CLAIM_GENERATED",
+                    "title": f"Vendor debit claim generated: ₹{claim_amount}",
+                    "details": f"Debit claim generated against {inw.get('supplier_name')} for {shortage_units} missing units @ ₹{unit_cost}."
+                })
+
         stock_inwards_col.update_one(
             {"_id": inw["_id"]},
             {
@@ -728,7 +881,7 @@ def audit_stock_inward(
         })
         return {
             "success": True,
-            "message": f"Stockist explanation accepted for Bill #{inw.get('supplier_bill_no')}. Inward marked as VERIFIED and stockist performance credited."
+            "message": f"Stockist explanation accepted for Bill #{inw.get('supplier_bill_no')}. Inward marked as VERIFIED and stockist performance credited.{claim_msg}"
         }
 
     elif action == "REJECT_EXPLANATION":
@@ -937,6 +1090,247 @@ def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
         return filtered if filtered else performance_list
 
     return performance_list
+
+# ==============================================================================
+# VENDOR DEBIT CLAIMS & PROMOTIONAL GIFT REGISTRY ENDPOINTS
+# ==============================================================================
+
+@router.get("/vendor-claims")
+def list_vendor_claims(
+    status_filter: Optional[str] = Query("all", pattern="^(all|PENDING_SETTLEMENT|SETTLED)$"),
+    supplier_search: Optional[str] = None,
+    user: dict = Depends(require_staff_or_admin)
+):
+    """List all vendor debit claims generated from inward delivery shortages."""
+    query = {}
+    if status_filter != "all":
+        query["status"] = status_filter
+    if supplier_search:
+        query["supplier_name"] = {"$regex": supplier_search.strip(), "$options": "i"}
+
+    claims = list(vendor_claims_col.find(query).sort("created_at", -1))
+    
+    # Calculate totals
+    all_claims = list(vendor_claims_col.find({}))
+    pending_total = sum(float(c.get("claim_amount", 0.0)) for c in all_claims if c.get("status") == "PENDING_SETTLEMENT")
+    settled_total = sum(float(c.get("claim_amount", 0.0)) for c in all_claims if c.get("status") == "SETTLED")
+    pending_count = sum(1 for c in all_claims if c.get("status") == "PENDING_SETTLEMENT")
+
+    return {
+        "claims": serialize_doc(claims),
+        "summary": {
+            "pending_count": pending_count,
+            "pending_total": round(pending_total, 2),
+            "settled_total": round(settled_total, 2),
+            "total_claims_count": len(all_claims)
+        }
+    }
+
+@router.post("/vendor-claims/{claim_id}/settle")
+def settle_vendor_claim(
+    claim_id: str,
+    data: VendorClaimSettleRequest,
+    admin_user: dict = Depends(require_admin)
+):
+    """Mark a vendor debit claim as settled (deducted from bill, credit note received, or refunded)."""
+    claim = vendor_claims_col.find_one({"$or": [{"claim_id": claim_id}, {"_id": ObjectId(claim_id) if ObjectId.is_valid(claim_id) else None}]})
+    if not claim:
+        raise HTTPException(status_code=404, detail="Vendor debit claim not found.")
+
+    now_utc = datetime.now(timezone.utc)
+    vendor_claims_col.update_one(
+        {"_id": claim["_id"]},
+        {
+            "$set": {
+                "status": "SETTLED",
+                "settlement_type": data.settlement_type,
+                "settlement_ref": (data.settlement_ref or "").strip(),
+                "settlement_notes": (data.notes or "").strip(),
+                "settled_at": now_utc,
+                "settled_by": admin_user.get("username", "admin"),
+                "settled_by_name": admin_user.get("full_name", "Admin")
+            }
+        }
+    )
+    return {
+        "success": True,
+        "message": f"Claim #{claim.get('claim_id')} of ₹{claim.get('claim_amount')} marked as SETTLED ({data.settlement_type.replace('_', ' ')})."
+    }
+
+@router.get("/gifts")
+def list_promotional_gifts(
+    status_filter: Optional[str] = Query("all", pattern="^(all|PENDING_ADMIN_ALLOCATION|ALLOCATED)$"),
+    allocation_filter: Optional[str] = Query("all", pattern="^(all|CUSTOMER_PROMO_SCHEME|FESTIVAL_DIWALI_VAULT|OWNER_STORE_ASSET|SELLABLE_STOCK)$"),
+    user: dict = Depends(require_staff_or_admin)
+):
+    """List promotional, free sample, and festival gifts received from suppliers."""
+    query = {}
+    if status_filter != "all":
+        query["status"] = status_filter
+    if allocation_filter != "all":
+        query["allocation_type"] = allocation_filter
+
+    gifts = list(promotional_gifts_col.find(query).sort("created_at", -1))
+    
+    all_gifts = list(promotional_gifts_col.find({}))
+    pending_alloc = sum(1 for g in all_gifts if g.get("status") == "PENDING_ADMIN_ALLOCATION")
+    active_schemes = sum(1 for g in all_gifts if g.get("allocation_type") == "CUSTOMER_PROMO_SCHEME" and float(g.get("remaining_qty", 0)) > 0)
+    festival_vault = sum(1 for g in all_gifts if g.get("allocation_type") == "FESTIVAL_DIWALI_VAULT")
+    store_assets = sum(1 for g in all_gifts if g.get("allocation_type") == "OWNER_STORE_ASSET")
+
+    return {
+        "gifts": serialize_doc(gifts),
+        "summary": {
+            "total_count": len(all_gifts),
+            "pending_allocation_count": pending_alloc,
+            "active_schemes_count": active_schemes,
+            "festival_vault_count": festival_vault,
+            "store_assets_count": store_assets
+        }
+    }
+
+@router.post("/gifts/{gift_id}/allocate")
+def allocate_promotional_gift(
+    gift_id: str,
+    data: GiftAllocationRequest,
+    admin_user: dict = Depends(require_admin)
+):
+    """Admin-only: Allocate a gift to customer scheme, festival vault, store asset, or sellable stock."""
+    gift = promotional_gifts_col.find_one({"$or": [{"gift_id": gift_id}, {"_id": ObjectId(gift_id) if ObjectId.is_valid(gift_id) else None}]})
+    if not gift:
+        raise HTTPException(status_code=404, detail="Gift record not found.")
+
+    now_utc = datetime.now(timezone.utc)
+    alloc_type = data.allocation_type
+
+    scheme_rule = None
+    vault_details = None
+    
+    if alloc_type == "CUSTOMER_PROMO_SCHEME":
+        scheme_rule = {
+            "min_purchase_qty": float(data.min_purchase_qty or 1.0),
+            "target_product_id": data.target_product_id or str(gift.get("product_id", "")),
+            "target_product_name": data.target_product_name or gift.get("product_name", ""),
+            "notes": data.notes or f"Buy {data.min_purchase_qty or 1} {data.target_product_name or gift.get('product_name', '')} & get 1 {gift.get('item_name')} free."
+        }
+    elif alloc_type == "FESTIVAL_DIWALI_VAULT":
+        vault_details = {
+            "person_name": (data.person_name or "").strip(),
+            "contact": (data.contact or "").strip(),
+            "vault_notes": (data.vault_notes or "").strip(),
+            "vault_status": "RESERVED",
+            "reserved_at": now_utc,
+            "handed_over_at": None,
+            "handed_over_by": None
+        }
+    elif alloc_type == "SELLABLE_STOCK":
+        gift_name = gift.get("item_name")
+        gift_qty = float(gift.get("quantity", 1.0))
+        sell_price = float(data.selling_price or 0.0)
+        
+        if data.target_product_id and ObjectId.is_valid(data.target_product_id):
+            products_col.update_one(
+                {"_id": ObjectId(data.target_product_id)},
+                {"$inc": {"stock_qty": gift_qty}}
+            )
+            stock_movements_col.insert_one({
+                "product_id": ObjectId(data.target_product_id),
+                "product_name": data.target_product_name or gift_name,
+                "sku": "BONUS",
+                "movement_type": "PROMOTIONAL_GIFT_ADDED",
+                "quantity_delta": gift_qty,
+                "stock_after": 0,
+                "reference": f"Vendor Gift #{gift.get('gift_id')} added to sellable stock @ ₹0 purchase cost",
+                "created_by": admin_user.get("username", "admin"),
+                "created_at": now_utc
+            })
+        else:
+            new_sku = f"GFT-{gift.get('item_name', 'ITEM')[:4].upper()}-{int(now_utc.timestamp())%10000}"
+            prod_doc = {
+                "name": gift_name,
+                "sku": new_sku,
+                "category": "Promotional Stock",
+                "unit": "Pcs",
+                "purchase_price": 0.0,
+                "selling_price": sell_price,
+                "stock_qty": gift_qty,
+                "low_stock_threshold": 1.0,
+                "gst_rate": 0.0,
+                "description": f"Vendor free gift from {gift.get('supplier_name')} (Bill #{gift.get('supplier_bill_no')})",
+                "created_at": now_utc
+            }
+            ins = products_col.insert_one(prod_doc)
+            stock_movements_col.insert_one({
+                "product_id": ins.inserted_id,
+                "product_name": gift_name,
+                "sku": new_sku,
+                "movement_type": "PROMOTIONAL_GIFT_ADDED",
+                "quantity_delta": gift_qty,
+                "stock_after": gift_qty,
+                "reference": f"Vendor Gift #{gift.get('gift_id')} added as sellable product @ ₹0 cost",
+                "created_by": admin_user.get("username", "admin"),
+                "created_at": now_utc
+            })
+
+    promotional_gifts_col.update_one(
+        {"_id": gift["_id"]},
+        {
+            "$set": {
+                "status": "ALLOCATED",
+                "allocation_type": alloc_type,
+                "scheme_rule": scheme_rule,
+                "vault_details": vault_details,
+                "allocation_notes": (data.notes or "").strip(),
+                "allocated_at": now_utc,
+                "allocated_by": admin_user.get("username", "admin"),
+                "allocated_by_name": admin_user.get("full_name", "Admin")
+            }
+        }
+    )
+
+    return {
+        "success": True,
+        "message": f"Gift '{gift.get('item_name')}' successfully allocated as {alloc_type.replace('_', ' ')}."
+    }
+
+@router.post("/gifts/{gift_id}/vault-action")
+def update_gift_vault_action(
+    gift_id: str,
+    data: GiftVaultActionRequest,
+    admin_user: dict = Depends(require_admin)
+):
+    """Update status of a gift in the Festival / Diwali Vault (e.g. mark handed over / delivered)."""
+    gift = promotional_gifts_col.find_one({"$or": [{"gift_id": gift_id}, {"_id": ObjectId(gift_id) if ObjectId.is_valid(gift_id) else None}]})
+    if not gift:
+        raise HTTPException(status_code=404, detail="Gift record not found.")
+
+    now_utc = datetime.now(timezone.utc)
+    promotional_gifts_col.update_one(
+        {"_id": gift["_id"]},
+        {
+            "$set": {
+                "vault_details.vault_status": data.action,
+                "vault_details.recipient_name": (data.recipient_name or gift.get("vault_details", {}).get("person_name", "")).strip(),
+                "vault_details.handover_notes": (data.notes or "").strip(),
+                "vault_details.handed_over_at": now_utc,
+                "vault_details.handed_over_by": admin_user.get("username", "admin")
+            }
+        }
+    )
+    return {
+        "success": True,
+        "message": f"Vault gift '{gift.get('item_name')}' status updated to {data.action}."
+    }
+
+@router.get("/gifts/active-schemes")
+def get_active_promotional_schemes(user: dict = Depends(require_staff_or_admin)):
+    """Retrieve active promotional gift schemes for billing / invoice counter."""
+    schemes = list(promotional_gifts_col.find({
+        "status": "ALLOCATED",
+        "allocation_type": "CUSTOMER_PROMO_SCHEME",
+        "remaining_qty": {"$gt": 0}
+    }).sort("created_at", -1))
+    return serialize_doc(schemes)
 
 @router.get("/cron/audit-reminder")
 @router.post("/cron/audit-reminder")

@@ -335,6 +335,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
 
   const [calculation, setCalculation] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeSchemes, setActiveSchemes] = useState([]);
 
   // Load Invoices from MongoDB
   const loadInvoices = async (forceSpinner = false) => {
@@ -384,10 +385,23 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     }
   };
 
+  const loadActiveSchemes = async () => {
+    try {
+      const res = await apiFetch('/api/inventory/gifts/active-schemes');
+      if (res.ok) {
+        const data = await res.json();
+        setActiveSchemes(data || []);
+      }
+    } catch (e) {
+      console.error('Failed to load active promotional schemes:', e);
+    }
+  };
+
   useEffect(() => {
     loadInvoices();
     loadProducts();
     loadStaffMembers();
+    loadActiveSchemes();
   }, [statusFilter, staffFilter, dataVersion]);
 
   useEffect(() => {
@@ -1424,6 +1438,78 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       + Add Item
                     </button>
                   </div>
+
+                  {/* Active Promotional Schemes Eligible for this Cart */}
+                  {activeSchemes
+                    .filter((scheme) => {
+                      const rule = scheme.scheme_rule || {};
+                      const minQty = parseFloat(rule.min_purchase_qty || 1);
+                      const targetProdId = rule.target_product_id;
+                      const matchingItem = items.find((it) => {
+                        if (!it.product_id) return false;
+                        if (targetProdId && it.product_id !== targetProdId) return false;
+                        return (parseFloat(it.quantity) || 0) >= minQty;
+                      });
+                      const alreadyAdded = items.some((it) => it.name === `${scheme.item_name} (Free Gift)`);
+                      return matchingItem && !alreadyAdded && (scheme.remaining_qty > 0 || scheme.remaining_qty === undefined);
+                    })
+                    .map((scheme) => (
+                      <div
+                        key={scheme.id || scheme.gift_id}
+                        style={{
+                          backgroundColor: '#EFF6FF',
+                          border: '1px solid #BFDBFE',
+                          borderRadius: '6px',
+                          padding: '10px 14px',
+                          marginBottom: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '10px'
+                        }}
+                      >
+                        <div style={{ fontSize: '12px', color: '#1E40AF' }}>
+                          <span style={{ fontWeight: 700, backgroundColor: '#DBEAFE', padding: '2px 6px', borderRadius: '4px', marginRight: '6px' }}>
+                            SCHEME BONUS
+                          </span>
+                          Customer qualified for <b>1x {scheme.item_name} Free</b> ({scheme.scheme_rule?.notes || 'Promotional Bundle Gift'}).
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setItems([
+                              ...items,
+                              {
+                                product_id: '',
+                                name: `${scheme.item_name} (Free Gift)`,
+                                sku: 'FREE-GIFT',
+                                unit: 'Pcs',
+                                base_unit: 'Pcs',
+                                conversion_factor: 1.0,
+                                quantity: 1,
+                                unit_price: 0.0,
+                                base_selling_price: 0.0,
+                                package_unit: '',
+                                package_qty: 1,
+                                package_selling_price: 0.0,
+                                gst_rate: 0.0,
+                                discount_type: 'percentage',
+                                discount_value: 0,
+                                batch_number: '',
+                                expiry_date: '',
+                                part_number: ''
+                              }
+                            ]);
+                            showToast(`Added ${scheme.item_name} as free scheme gift to bill`, 'success');
+                          }}
+                          className="btn btn-xs"
+                          style={{ backgroundColor: '#1E40AF', color: '#FFFFFF', fontWeight: 600, border: 'none' }}
+                        >
+                          + Add Free Gift to Bill (₹0.00)
+                        </button>
+                      </div>
+                    ))}
 
                   {items.map((it, idx) => (
                     <div

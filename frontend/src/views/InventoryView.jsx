@@ -43,9 +43,14 @@ export const InventoryView = () => {
   const [inwardHasDiscrepancy, setInwardHasDiscrepancy] = useState(false);
   const [inwardBilledQty, setInwardBilledQty] = useState('');
   const [inwardStockistRemarks, setInwardStockistRemarks] = useState('');
+  const [inwardHasGift, setInwardHasGift] = useState(false);
+  const [inwardGiftName, setInwardGiftName] = useState('');
+  const [inwardGiftQty, setInwardGiftQty] = useState('1');
+  const [inwardGiftRef, setInwardGiftRef] = useState('');
 
   // Stock Audit Tray Modal State
   const [showAuditTrayModal, setShowAuditTrayModal] = useState(false);
+  const [auditTrayTab, setAuditTrayTab] = useState('INWARDS'); // 'INWARDS' | 'VENDOR_CLAIMS' | 'GIFT_VAULT'
   const [auditInwards, setAuditInwards] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditFilter, setAuditFilter] = useState('all');
@@ -55,6 +60,36 @@ export const InventoryView = () => {
   const [selectedInwardForRecount, setSelectedInwardForRecount] = useState(null);
   const [recountCorrectedQty, setRecountCorrectedQty] = useState('');
   const [recountNotes, setRecountNotes] = useState('');
+
+  // Vendor Debit Claims State
+  const [vendorClaims, setVendorClaims] = useState([]);
+  const [claimsSummary, setClaimsSummary] = useState({ pending_count: 0, pending_total: 0, settled_total: 0, total_claims_count: 0 });
+  const [claimsLoading, setClaimsLoading] = useState(false);
+  const [claimFilter, setClaimFilter] = useState('all');
+  const [selectedClaimForSettle, setSelectedClaimForSettle] = useState(null);
+  const [settleType, setSettleType] = useState('DEDUCTED_FROM_BILL');
+  const [settleRef, setSettleRef] = useState('');
+  const [settleNotes, setSettleNotes] = useState('');
+  const [settlingClaim, setSettlingClaim] = useState(false);
+
+  // Promotional & Festival Gift Vault State
+  const [promotionalGifts, setPromotionalGifts] = useState([]);
+  const [giftsSummary, setGiftsSummary] = useState({ total_count: 0, pending_allocation_count: 0, active_schemes_count: 0, festival_vault_count: 0, store_assets_count: 0 });
+  const [giftsLoading, setGiftsLoading] = useState(false);
+  const [giftFilter, setGiftFilter] = useState('all');
+  const [selectedGiftForAllocation, setSelectedGiftForAllocation] = useState(null);
+  const [giftAllocType, setGiftAllocType] = useState('CUSTOMER_PROMO_SCHEME');
+  const [giftMinQty, setGiftMinQty] = useState('2');
+  const [giftTargetProdId, setGiftTargetProdId] = useState('');
+  const [giftPersonName, setGiftPersonName] = useState('');
+  const [giftContact, setGiftContact] = useState('');
+  const [giftVaultNotes, setGiftVaultNotes] = useState('');
+  const [giftSellingPrice, setGiftSellingPrice] = useState('');
+  const [submittingAlloc, setSubmittingAlloc] = useState(false);
+  const [selectedGiftForHandover, setSelectedGiftForHandover] = useState(null);
+  const [handoverRecipient, setHandoverRecipient] = useState('');
+  const [handoverNotes, setHandoverNotes] = useState('');
+  const [submittingHandover, setSubmittingHandover] = useState(false);
 
   // In-App Alert and Audit Timeline State
   const [inwardAlerts, setInwardAlerts] = useState(null);
@@ -325,6 +360,10 @@ export const InventoryView = () => {
     setInwardHasDiscrepancy(false);
     setInwardBilledQty('');
     setInwardStockistRemarks('');
+    setInwardHasGift(false);
+    setInwardGiftName('');
+    setInwardGiftQty('1');
+    setInwardGiftRef('');
     setOtpSent(false);
     setInwardAuditStatus(null);
     setInwardAuthType('NORMAL');
@@ -391,7 +430,14 @@ export const InventoryView = () => {
         emergency_declaration: inwardDeclaration.trim(),
         has_discrepancy: inwardHasDiscrepancy,
         billed_qty: inwardHasDiscrepancy && inwardBilledQty ? parseFloat(inwardBilledQty) : null,
-        stockist_remarks: inwardHasDiscrepancy ? inwardStockistRemarks.trim() : ''
+        stockist_remarks: inwardHasDiscrepancy ? inwardStockistRemarks.trim() : '',
+        free_items: inwardHasGift && inwardGiftName.trim() ? [
+          {
+            item_name: inwardGiftName.trim(),
+            quantity: parseFloat(inwardGiftQty) || 1,
+            challan_reference: inwardGiftRef.trim()
+          }
+        ] : []
       };
 
       const res = await apiFetch('/api/inventory/inward', {
@@ -403,8 +449,13 @@ export const InventoryView = () => {
 
       showToast(data.message, 'success');
       setShowInwardModal(false);
+      setInwardHasGift(false);
+      setInwardGiftName('');
+      setInwardGiftQty('1');
+      setInwardGiftRef('');
       loadProducts(true);
       refreshData();
+      loadInwardAlerts();
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -429,6 +480,138 @@ export const InventoryView = () => {
     }
   };
 
+  const loadVendorClaims = async (status = claimFilter) => {
+    setClaimsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (status !== 'all') params.append('status_filter', status);
+      const res = await apiFetch(`/api/inventory/vendor-claims?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setVendorClaims(data.claims || []);
+        if (data.summary) setClaimsSummary(data.summary);
+      }
+    } catch (err) {
+      console.error('Error loading vendor claims:', err);
+    } finally {
+      setClaimsLoading(false);
+    }
+  };
+
+  const loadPromotionalGifts = async (status = giftFilter) => {
+    setGiftsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (status !== 'all') {
+        if (['CUSTOMER_PROMO_SCHEME', 'FESTIVAL_DIWALI_VAULT', 'OWNER_STORE_ASSET', 'SELLABLE_STOCK'].includes(status)) {
+          params.append('allocation_filter', status);
+        } else {
+          params.append('status_filter', status);
+        }
+      }
+      const res = await apiFetch(`/api/inventory/gifts?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPromotionalGifts(data.gifts || []);
+        if (data.summary) setGiftsSummary(data.summary);
+      }
+    } catch (err) {
+      console.error('Error loading promotional gifts:', err);
+    } finally {
+      setGiftsLoading(false);
+    }
+  };
+
+  const handleSettleClaim = async (e) => {
+    e.preventDefault();
+    if (!selectedClaimForSettle) return;
+    setSettlingClaim(true);
+    try {
+      const res = await apiFetch(`/api/inventory/vendor-claims/${selectedClaimForSettle.claim_id}/settle`, {
+        method: 'POST',
+        body: JSON.stringify({
+          settlement_type: settleType,
+          settlement_ref: settleRef.trim(),
+          notes: settleNotes.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to settle claim');
+      showToast(data.message, 'success');
+      setSelectedClaimForSettle(null);
+      setSettleRef('');
+      setSettleNotes('');
+      loadVendorClaims(claimFilter);
+      loadInwardAlerts();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSettlingClaim(false);
+    }
+  };
+
+  const handleAllocateGift = async (e) => {
+    e.preventDefault();
+    if (!selectedGiftForAllocation) return;
+    setSubmittingAlloc(true);
+    try {
+      const payload = {
+        allocation_type: giftAllocType,
+        min_purchase_qty: giftAllocType === 'CUSTOMER_PROMO_SCHEME' ? parseFloat(giftMinQty) || 1 : null,
+        target_product_id: giftTargetProdId || null,
+        target_product_name: giftTargetProdId ? products.find(p => p.id === giftTargetProdId)?.name : '',
+        person_name: giftAllocType === 'FESTIVAL_DIWALI_VAULT' ? giftPersonName.trim() : '',
+        contact: giftAllocType === 'FESTIVAL_DIWALI_VAULT' ? giftContact.trim() : '',
+        vault_notes: giftAllocType === 'FESTIVAL_DIWALI_VAULT' ? giftVaultNotes.trim() : '',
+        selling_price: giftAllocType === 'SELLABLE_STOCK' ? parseFloat(giftSellingPrice) || 0 : 0,
+        notes: ''
+      };
+      const res = await apiFetch(`/api/inventory/gifts/${selectedGiftForAllocation.gift_id}/allocate`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to allocate gift');
+      showToast(data.message, 'success');
+      setSelectedGiftForAllocation(null);
+      loadPromotionalGifts(giftFilter);
+      loadInwardAlerts();
+      if (giftAllocType === 'SELLABLE_STOCK') loadProducts(true);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSubmittingAlloc(false);
+    }
+  };
+
+  const handleVaultAction = async (e) => {
+    e.preventDefault();
+    if (!selectedGiftForHandover) return;
+    setSubmittingHandover(true);
+    try {
+      const res = await apiFetch(`/api/inventory/gifts/${selectedGiftForHandover.gift_id}/vault-action`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'HANDED_OVER',
+          recipient_name: handoverRecipient.trim(),
+          notes: handoverNotes.trim()
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to update vault gift');
+      showToast(data.message, 'success');
+      setSelectedGiftForHandover(null);
+      setHandoverRecipient('');
+      setHandoverNotes('');
+      loadPromotionalGifts(giftFilter);
+      loadInwardAlerts();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSubmittingHandover(false);
+    }
+  };
+
   const loadStockistPerformance = async () => {
     try {
       const res = await apiFetch('/api/inventory/stockist-performance');
@@ -441,9 +624,12 @@ export const InventoryView = () => {
     }
   };
 
-  const openAuditTray = () => {
+  const openAuditTray = (initialTab = 'INWARDS') => {
     setShowAuditTrayModal(true);
+    setAuditTrayTab(initialTab);
     loadAuditInwards(auditFilter);
+    loadVendorClaims(claimFilter);
+    loadPromotionalGifts(giftFilter);
     loadInwardAlerts();
   };
 
@@ -608,12 +794,100 @@ export const InventoryView = () => {
           <button
             onClick={() => {
               setAuditFilter('FLAGGED_DISCREPANCY');
-              openAuditTray();
+              openAuditTray('INWARDS');
             }}
             className="btn btn-sm"
             style={{ backgroundColor: '#1E40AF', color: '#FFFFFF', borderColor: '#1E40AF', fontWeight: 600 }}
           >
             Review &amp; Recount &rarr;
+          </button>
+        </div>
+      )}
+
+      {isAdmin && inwardAlerts?.pending_claims_count > 0 && (
+        <div
+          style={{
+            backgroundColor: '#FEF2F2',
+            border: '1px solid #FECACA',
+            borderRadius: '8px',
+            padding: '12px 18px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px' }}>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                backgroundColor: '#991B1B',
+                color: '#FFFFFF',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                letterSpacing: '0.5px'
+              }}
+            >
+              VENDOR DEBIT CLAIM
+            </span>
+            <div style={{ fontSize: '13px', color: '#991B1B' }}>
+              <b>{inwardAlerts.pending_claims_count} supplier shortage claim(s) totaling ₹{inwardAlerts.pending_claims_total}</b> pending settlement / deduction from supplier bills.
+            </div>
+          </div>
+          <button
+            onClick={() => openAuditTray('VENDOR_CLAIMS')}
+            className="btn btn-sm"
+            style={{ backgroundColor: '#991B1B', color: '#FFFFFF', borderColor: '#991B1B', fontWeight: 600 }}
+          >
+            View Vendor Claims &rarr;
+          </button>
+        </div>
+      )}
+
+      {isAdmin && inwardAlerts?.pending_gifts_count > 0 && (
+        <div
+          style={{
+            backgroundColor: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            borderRadius: '8px',
+            padding: '12px 18px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px' }}>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                backgroundColor: '#B45309',
+                color: '#FFFFFF',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                letterSpacing: '0.5px'
+              }}
+            >
+              GIFT ALLOCATION
+            </span>
+            <div style={{ fontSize: '13px', color: '#92400E' }}>
+              <b>{inwardAlerts.pending_gifts_count} promotional / free gift(s)</b> received from suppliers awaiting Owner allocation (Customer Scheme, Diwali Vault, Store Asset).
+            </div>
+          </div>
+          <button
+            onClick={() => openAuditTray('GIFT_VAULT')}
+            className="btn btn-sm"
+            style={{ backgroundColor: '#B45309', color: '#FFFFFF', borderColor: '#B45309', fontWeight: 600 }}
+          >
+            Allocate Gifts &rarr;
           </button>
         </div>
       )}
@@ -1366,6 +1640,67 @@ export const InventoryView = () => {
                   )}
                 </div>
 
+                {/* Free / Promotional Gifts Inward Section */}
+                <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '10px 12px', marginTop: '10px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', color: '#1E293B' }}>
+                    <input
+                      type="checkbox"
+                      checked={inwardHasGift}
+                      onChange={(e) => {
+                        setInwardHasGift(e.target.checked);
+                        if (!e.target.checked) {
+                          setInwardGiftName('');
+                          setInwardGiftQty('1');
+                          setInwardGiftRef('');
+                        }
+                      }}
+                    />
+                    <span>Free / Promotional Gift Merchandise Included with Delivery?</span>
+                  </label>
+                  {inwardHasGift && (
+                    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
+                        <div>
+                          <label className="form-label" style={{ fontSize: '11px', color: '#475569' }}>Gift Item Name *</label>
+                          <input
+                            type="text"
+                            required={inwardHasGift}
+                            className="form-input"
+                            placeholder="e.g. Milton 1L Steel Bottle, 3 Trial Pens, Umbrella"
+                            value={inwardGiftName}
+                            onChange={(e) => setInwardGiftName(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="form-label" style={{ fontSize: '11px', color: '#475569' }}>Gift Qty *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            step="any"
+                            required={inwardHasGift}
+                            className="form-input"
+                            value={inwardGiftQty}
+                            onChange={(e) => setInwardGiftQty(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '11px', color: '#475569' }}>Challan / Invoice Reference</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. Line 5 / Scheme bonus noted on bill"
+                          value={inwardGiftRef}
+                          onChange={(e) => setInwardGiftRef(e.target.value)}
+                        />
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#64748B' }}>
+                        Note: Stockist records incoming gifts on arrival. Allocation (Customer Scheme, Diwali Vault, Store Asset) is decided solely by the Store Owner.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Authorization Mode Selection if Prior Inward Unverified */}
                 {inwardAuditStatus?.has_unverified && !isAdmin && (
                   <div style={{ borderTop: '1px solid var(--color-stone-light)', paddingTop: '14px', marginTop: '10px' }}>
@@ -1467,291 +1802,737 @@ export const InventoryView = () => {
           <div className="modal-sheet modal-sheet-lg" style={{ maxWidth: '1100px', width: '96vw' }}>
             <div className="modal-header">
               <div>
-                <h3 style={{ margin: 0, fontSize: '16px' }}>Stock Inward Audit Tray</h3>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>Stock Inward, Claims &amp; Gift Audit Tray</h3>
                 <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
-                  Audit incoming shipments, verify physical supplier bills, and flag discrepancies.
+                  Audit incoming shipments, track supplier debit claims, and allocate promotional/festival gifts.
                 </div>
               </div>
               <button onClick={() => setShowAuditTrayModal(false)} className="btn btn-ghost btn-sm">✕</button>
             </div>
             <div className="modal-body" style={{ maxHeight: '72vh' }}>
-              {/* Filter Tabs */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {[
-                    { id: 'all', label: 'All Inwards' },
-                    { id: 'PENDING_AUDIT', label: 'Pending Audit' },
-                    { id: 'VERIFIED', label: 'Verified' },
-                    { id: 'FLAGGED_DISCREPANCY', label: 'Discrepancies' }
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => {
-                        setAuditFilter(tab.id);
-                        loadAuditInwards(tab.id);
-                      }}
-                      className={`btn btn-xs ${auditFilter === tab.id ? 'btn-primary' : 'btn-secondary'}`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
-                  Showing {auditInwards.length} records
-                </div>
+              {/* Primary Section Switch */}
+              <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #E2E8F0', paddingBottom: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setAuditTrayTab('INWARDS')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: auditTrayTab === 'INWARDS' ? '#243C32' : '#F1F5F9',
+                    color: auditTrayTab === 'INWARDS' ? '#FFFFFF' : '#475569'
+                  }}
+                >
+                  Shipment Inward Audit ({auditInwards.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuditTrayTab('VENDOR_CLAIMS');
+                    loadVendorClaims(claimFilter);
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: auditTrayTab === 'VENDOR_CLAIMS' ? '#991B1B' : '#F1F5F9',
+                    color: auditTrayTab === 'VENDOR_CLAIMS' ? '#FFFFFF' : '#475569',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span>Vendor Debit Claims</span>
+                  {claimsSummary.pending_count > 0 && (
+                    <span style={{ backgroundColor: '#FEE2E2', color: '#991B1B', fontSize: '10.5px', padding: '1px 6px', borderRadius: '10px' }}>
+                      ₹{claimsSummary.pending_total} ({claimsSummary.pending_count})
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuditTrayTab('GIFT_VAULT');
+                    loadPromotionalGifts(giftFilter);
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: auditTrayTab === 'GIFT_VAULT' ? '#1E40AF' : '#F1F5F9',
+                    color: auditTrayTab === 'GIFT_VAULT' ? '#FFFFFF' : '#475569',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span>Promotional &amp; Festival Gift Vault</span>
+                  {giftsSummary.pending_allocation_count > 0 && (
+                    <span style={{ backgroundColor: '#FEF3C7', color: '#92400E', fontSize: '10.5px', padding: '1px 6px', borderRadius: '10px' }}>
+                      {giftsSummary.pending_allocation_count} Pending
+                    </span>
+                  )}
+                </button>
               </div>
 
-              {auditLoading ? (
-                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
-                  Loading stock inward logs...
-                </div>
-              ) : auditInwards.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)', backgroundColor: '#F8F6F0', borderRadius: '6px' }}>
-                  No inward records found for this filter.
-                </div>
-              ) : (
-                <div className="ledger-table-container" style={{ border: '1px solid var(--color-stone-light)', borderRadius: '8px', overflowX: 'auto', maxHeight: '58vh' }}>
-                  <table className="ledger-table" style={{ width: '100%', minWidth: '980px' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ width: '135px' }}>Date &amp; Time</th>
-                        <th style={{ width: '180px' }}>Product &amp; SKU</th>
-                        <th style={{ width: '85px', textAlign: 'center' }}>Inward Qty</th>
-                        <th style={{ minWidth: '160px' }}>Supplier &amp; Bill #</th>
-                        <th style={{ width: '110px' }}>Received By</th>
-                        <th style={{ width: '105px' }}>Auth Mode</th>
-                        <th style={{ width: '150px', textAlign: 'center' }}>Status &amp; Audit Trail</th>
-                        <th style={{ width: '220px', textAlign: 'right', paddingRight: '14px' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {auditInwards.map((inw) => {
-                        const isPending = inw.status === 'PENDING_AUDIT';
-                        const isVerified = inw.status === 'VERIFIED';
-                        const isDiscrepancy = inw.status === 'FLAGGED_DISCREPANCY';
-                        return (
-                          <tr key={inw.id}>
-                            <td style={{ fontSize: '11px', color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
-                              {new Date(inw.created_at).toLocaleString('en-IN')}
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{inw.product_name}</div>
-                              <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}>{inw.sku}</div>
-                            </td>
-                            <td className="tabular-nums" style={{ textAlign: 'center', fontWeight: 700, color: '#166534' }}>
-                              +{inw.quantity_received}
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{inw.supplier_name}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--color-forest)' }}>Bill: #{inw.supplier_bill_no}</div>
-                              {inw.has_discrepancy && (
-                                <div style={{ fontSize: '10.5px', color: '#B45309', marginTop: '2px', fontWeight: 600 }}>
-                                  Shortage: {inw.discrepancy_qty} units (Billed {inw.billed_qty})
-                                </div>
-                              )}
-                            </td>
-                            <td>
-                              <span style={{ fontSize: '12px', fontWeight: 600 }}>{inw.received_by_name}</span>
-                            </td>
-                            <td>
-                              <span
-                                style={{
-                                  fontSize: '10px',
-                                  fontWeight: 600,
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  backgroundColor: inw.authorization_type === 'EMERGENCY_OVERRIDE' ? '#FFEDD5' : inw.authorization_type === 'SMS_OTP' ? '#EDE9FE' : '#E0E7FF',
-                                  color: inw.authorization_type === 'EMERGENCY_OVERRIDE' ? '#C2410C' : inw.authorization_type === 'SMS_OTP' ? '#5B21B6' : '#3730A3'
-                                }}
-                              >
-                                {inw.authorization_type}
-                              </span>
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <div>
-                                <span
-                                  style={{
-                                    fontSize: '11px',
-                                    fontWeight: 700,
-                                    padding: '2px 8px',
-                                    borderRadius: '4px',
-                                    backgroundColor: isVerified ? '#DCFCE7' : isDiscrepancy ? '#FEE2E2' : '#FEF3C7',
-                                    color: isVerified ? '#166534' : isDiscrepancy ? '#991B1B' : '#92400E',
-                                    display: 'inline-block'
-                                  }}
-                                >
-                                  {isVerified ? 'Verified' : isDiscrepancy ? `Shortage (${inw.discrepancy_qty})` : 'Pending Audit'}
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => setSelectedInwardForTimeline(inw)}
-                                className="btn btn-ghost btn-xs"
-                                style={{ fontSize: '10.5px', color: '#2563EB', textDecoration: 'underline', padding: '2px 4px', marginTop: '2px' }}
-                                title="View complete chronological audit trail"
-                              >
-                                Audit Trail ({inw.audit_timeline?.length || 1})
-                              </button>
-                            </td>
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', paddingRight: '14px' }}>
-                              {isAdmin ? (
-                                isPending ? (
-                                  /* Pending Audit State (Normal delivery waiting check) */
-                                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                    <button
-                                      onClick={() => handleAuditAction(inw.id, 'VERIFY')}
-                                      className="btn btn-xs"
-                                      style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', fontWeight: 600 }}
-                                      title="Verify supplier bill matches physical receipt"
-                                    >
-                                      Verify
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setSelectedInwardForDiscrepancy(inw);
-                                        setDiscrepancyActualQty(String(inw.quantity_received));
-                                        setDiscrepancyNotes('');
-                                      }}
-                                      className="btn btn-xs"
-                                      style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', fontWeight: 600 }}
-                                      title="Flag shortage on arrival"
-                                    >
-                                      Flag Shortage
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setSelectedInwardForRecount(inw);
-                                        setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
-                                        setRecountNotes('');
-                                      }}
-                                      className="btn btn-xs"
-                                      style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE', fontWeight: 600 }}
-                                      title="Recount physical inventory and adjust stock"
-                                    >
-                                      Recount
-                                    </button>
-                                  </div>
-                                ) : isDiscrepancy ? (
-                                  /* Shortage / Discrepancy State: Clean, non-overlapping actions */
-                                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                    {inw.admin_decision !== 'ACCEPTED' && (
-                                      <button
-                                        onClick={() => {
-                                          setSelectedInwardForDecision(inw);
-                                          setDecisionActionType('ACCEPT_EXPLANATION');
-                                          setDecisionNotesInput('');
-                                        }}
-                                        className="btn btn-xs"
-                                        style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', fontWeight: 600 }}
-                                        title="Accept shortage: supplier defect verified"
-                                      >
-                                        Accept Shortage
-                                      </button>
-                                    )}
-                                    {inw.admin_decision !== 'REJECTED' && (
-                                      <button
-                                        onClick={() => {
-                                          setSelectedInwardForDecision(inw);
-                                          setDecisionActionType('REJECT_EXPLANATION');
-                                          setDecisionNotesInput('');
-                                        }}
-                                        className="btn btn-xs"
-                                        style={{ backgroundColor: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', fontWeight: 600 }}
-                                        title="Reject stockist statement: staff miscount"
-                                      >
-                                        Reject
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => {
-                                        setSelectedInwardForRecount(inw);
-                                        setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
-                                        setRecountNotes('');
-                                      }}
-                                      className="btn btn-xs"
-                                      style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE', fontWeight: 600 }}
-                                      title="Recount physical stock & adjust inventory"
-                                    >
-                                      Recount &amp; Resolve
-                                    </button>
-                                  </div>
-                                ) : (
-                                  /* Already Audited & Verified State */
-                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+              {/* TAB 1: SHIPMENT INWARD AUDIT */}
+              {auditTrayTab === 'INWARDS' && (
+                <div>
+                  {/* Filter Tabs */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {[
+                        { id: 'all', label: 'All Inwards' },
+                        { id: 'PENDING_AUDIT', label: 'Pending Audit' },
+                        { id: 'VERIFIED', label: 'Verified' },
+                        { id: 'FLAGGED_DISCREPANCY', label: 'Discrepancies' }
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setAuditFilter(tab.id);
+                            loadAuditInwards(tab.id);
+                          }}
+                          className={`btn btn-xs ${auditFilter === tab.id ? 'btn-primary' : 'btn-secondary'}`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                      Showing {auditInwards.length} records
+                    </div>
+                  </div>
+
+                  {auditLoading ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
+                      Loading stock inward logs...
+                    </div>
+                  ) : auditInwards.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)', backgroundColor: '#F8F6F0', borderRadius: '6px' }}>
+                      No inward records found for this filter.
+                    </div>
+                  ) : (
+                    <div className="ledger-table-container" style={{ border: '1px solid var(--color-stone-light)', borderRadius: '8px', overflowX: 'auto', maxHeight: '54vh' }}>
+                      <table className="ledger-table" style={{ width: '100%', minWidth: '980px' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '135px' }}>Date &amp; Time</th>
+                            <th style={{ width: '180px' }}>Product &amp; SKU</th>
+                            <th style={{ width: '85px', textAlign: 'center' }}>Inward Qty</th>
+                            <th style={{ minWidth: '160px' }}>Supplier &amp; Bill #</th>
+                            <th style={{ width: '110px' }}>Received By</th>
+                            <th style={{ width: '105px' }}>Auth Mode</th>
+                            <th style={{ width: '150px', textAlign: 'center' }}>Status &amp; Audit Trail</th>
+                            <th style={{ width: '220px', textAlign: 'right', paddingRight: '14px' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {auditInwards.map((inw) => {
+                            const isPending = inw.status === 'PENDING_AUDIT';
+                            const isVerified = inw.status === 'VERIFIED';
+                            const isDiscrepancy = inw.status === 'FLAGGED_DISCREPANCY';
+                            return (
+                              <tr key={inw.id}>
+                                <td style={{ fontSize: '11px', color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
+                                  {new Date(inw.created_at).toLocaleString('en-IN')}
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{inw.product_name}</div>
+                                  <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}>{inw.sku}</div>
+                                </td>
+                                <td className="tabular-nums" style={{ textAlign: 'center', fontWeight: 700, color: '#166534' }}>
+                                  +{inw.quantity_received}
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{inw.supplier_name}</div>
+                                  <div style={{ fontSize: '11px', color: 'var(--color-forest)' }}>Bill: #{inw.supplier_bill_no}</div>
+                                  {inw.has_discrepancy && (
+                                    <div style={{ fontSize: '10.5px', color: '#B45309', marginTop: '2px', fontWeight: 600 }}>
+                                      Shortage: {inw.discrepancy_qty} units (Billed {inw.billed_qty})
+                                    </div>
+                                  )}
+                                  {inw.free_items && inw.free_items.length > 0 && (
+                                    <div style={{ fontSize: '10.5px', color: '#1E40AF', marginTop: '2px', fontWeight: 600 }}>
+                                      Free Gifts: {inw.free_items.map(f => `${f.quantity}x ${f.item_name}`).join(', ')}
+                                    </div>
+                                  )}
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: '12px', fontWeight: 600 }}>{inw.received_by_name}</span>
+                                </td>
+                                <td>
+                                  <span
+                                    style={{
+                                      fontSize: '10px',
+                                      fontWeight: 600,
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      backgroundColor: inw.authorization_type === 'EMERGENCY_OVERRIDE' ? '#FFEDD5' : inw.authorization_type === 'SMS_OTP' ? '#EDE9FE' : '#E0E7FF',
+                                      color: inw.authorization_type === 'EMERGENCY_OVERRIDE' ? '#C2410C' : inw.authorization_type === 'SMS_OTP' ? '#5B21B6' : '#3730A3'
+                                    }}
+                                  >
+                                    {inw.authorization_type}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <div>
                                     <span
                                       style={{
                                         fontSize: '11px',
-                                        fontWeight: 600,
+                                        fontWeight: 700,
                                         padding: '2px 8px',
-                                        borderRadius: '10px',
-                                        backgroundColor: inw.admin_decision === 'REJECTED' ? '#FEE2E2' : '#DCFCE7',
-                                        color: inw.admin_decision === 'REJECTED' ? '#991B1B' : '#166534',
-                                        whiteSpace: 'nowrap'
+                                        borderRadius: '4px',
+                                        backgroundColor: isVerified ? '#DCFCE7' : isDiscrepancy ? '#FEE2E2' : '#FEF3C7',
+                                        color: isVerified ? '#166534' : isDiscrepancy ? '#991B1B' : '#92400E',
+                                        display: 'inline-block'
                                       }}
                                     >
-                                      Audited by {inw.audited_by || 'Admin'}
-                                      {inw.admin_decision === 'RESOLVED_RECOUNT' && ' (Recounted)'}
+                                      {isVerified ? 'Verified' : isDiscrepancy ? `Shortage (${inw.discrepancy_qty})` : 'Pending Audit'}
                                     </span>
-                                    <button
-                                      onClick={() => {
-                                        setSelectedInwardForRecount(inw);
-                                        setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
-                                        setRecountNotes('');
-                                      }}
-                                      className="btn btn-ghost btn-xs"
-                                      style={{ fontSize: '10.5px', color: '#6B7280', padding: '2px 6px' }}
-                                      title="Recount stock if physical correction needed"
-                                    >
-                                      Recount
-                                    </button>
                                   </div>
-                                )
-                              ) : (
-                                /* Stockist / Staff Actions */
-                                <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                  {inw.stockist_appeal_needed ? (
-                                    <button
-                                      onClick={() => {
-                                        setSelectedInwardForStatement(inw);
-                                        setStockistStatementInput('');
-                                      }}
-                                      className="btn btn-xs"
-                                      style={{ backgroundColor: '#DC2626', color: '#FFFFFF', border: '1px solid #DC2626', fontWeight: 600, padding: '3px 8px' }}
-                                      title="Owner disputed your count. Submit appeal / clarification"
-                                    >
-                                      Submit Appeal
-                                    </button>
-                                  ) : inw.admin_review_pending ? (
-                                    <span style={{ fontSize: '11px', color: '#1E40AF', backgroundColor: '#DBEAFE', padding: '3px 8px', borderRadius: '10px', fontWeight: 600 }}>
-                                      Appeal Under Review
-                                    </span>
-                                  ) : inw.has_discrepancy && !inw.stockist_statement ? (
-                                    <button
-                                      onClick={() => {
-                                        setSelectedInwardForStatement(inw);
-                                        setStockistStatementInput(inw.stockist_remarks || '');
-                                      }}
-                                      className="btn btn-xs"
-                                      style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', fontWeight: 600, padding: '3px 8px' }}
-                                    >
-                                      Submit Statement
-                                    </button>
-                                  ) : isVerified ? (
-                                    <span style={{ fontSize: '11px', color: '#166534', fontWeight: 600, backgroundColor: '#DCFCE7', padding: '3px 8px', borderRadius: '10px' }}>
-                                      Audited &amp; Verified
-                                    </span>
+                                  <button
+                                    onClick={() => setSelectedInwardForTimeline(inw)}
+                                    className="btn btn-ghost btn-xs"
+                                    style={{ fontSize: '10.5px', color: '#2563EB', textDecoration: 'underline', padding: '2px 4px', marginTop: '2px' }}
+                                    title="View complete chronological audit trail"
+                                  >
+                                    Audit Trail ({inw.audit_timeline?.length || 1})
+                                  </button>
+                                </td>
+                                <td style={{ textAlign: 'right', whiteSpace: 'nowrap', paddingRight: '14px' }}>
+                                  {isAdmin ? (
+                                    isPending ? (
+                                      <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        <button
+                                          onClick={() => handleAuditAction(inw.id, 'VERIFY')}
+                                          className="btn btn-xs"
+                                          style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', fontWeight: 600 }}
+                                          title="Verify supplier bill matches physical receipt"
+                                        >
+                                          Verify
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setSelectedInwardForDiscrepancy(inw);
+                                            setDiscrepancyActualQty(String(inw.quantity_received));
+                                            setDiscrepancyNotes('');
+                                          }}
+                                          className="btn btn-xs"
+                                          style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', fontWeight: 600 }}
+                                          title="Flag shortage on arrival"
+                                        >
+                                          Flag Shortage
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setSelectedInwardForRecount(inw);
+                                            setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
+                                            setRecountNotes('');
+                                          }}
+                                          className="btn btn-xs"
+                                          style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE', fontWeight: 600 }}
+                                          title="Recount physical inventory and adjust stock"
+                                        >
+                                          Recount
+                                        </button>
+                                      </div>
+                                    ) : isDiscrepancy ? (
+                                      <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        {inw.admin_decision !== 'ACCEPTED' && (
+                                          <button
+                                            onClick={() => {
+                                              setSelectedInwardForDecision(inw);
+                                              setDecisionActionType('ACCEPT_EXPLANATION');
+                                              setDecisionNotesInput('');
+                                            }}
+                                            className="btn btn-xs"
+                                            style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0', fontWeight: 600 }}
+                                            title="Accept shortage: supplier defect verified, creates Vendor Debit Claim"
+                                          >
+                                            Accept Shortage
+                                          </button>
+                                        )}
+                                        {inw.admin_decision !== 'REJECTED' && (
+                                          <button
+                                            onClick={() => {
+                                              setSelectedInwardForDecision(inw);
+                                              setDecisionActionType('REJECT_EXPLANATION');
+                                              setDecisionNotesInput('');
+                                            }}
+                                            className="btn btn-xs"
+                                            style={{ backgroundColor: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', fontWeight: 600 }}
+                                            title="Reject stockist statement: staff miscount"
+                                          >
+                                            Reject
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => {
+                                            setSelectedInwardForRecount(inw);
+                                            setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
+                                            setRecountNotes('');
+                                          }}
+                                          className="btn btn-xs"
+                                          style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', border: '1px solid #BFDBFE', fontWeight: 600 }}
+                                          title="Recount physical stock & adjust inventory"
+                                        >
+                                          Recount &amp; Resolve
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        <span
+                                          style={{
+                                            fontSize: '11px',
+                                            fontWeight: 600,
+                                            padding: '2px 8px',
+                                            borderRadius: '10px',
+                                            backgroundColor: inw.admin_decision === 'REJECTED' ? '#FEE2E2' : '#DCFCE7',
+                                            color: inw.admin_decision === 'REJECTED' ? '#991B1B' : '#166534',
+                                            whiteSpace: 'nowrap'
+                                          }}
+                                        >
+                                          Audited by {inw.audited_by || 'Admin'}
+                                          {inw.admin_decision === 'RESOLVED_RECOUNT' && ' (Recounted)'}
+                                        </span>
+                                        <button
+                                          onClick={() => {
+                                            setSelectedInwardForRecount(inw);
+                                            setRecountCorrectedQty(String(inw.billed_qty || inw.quantity_received));
+                                            setRecountNotes('');
+                                          }}
+                                          className="btn btn-ghost btn-xs"
+                                          style={{ fontSize: '10.5px', color: '#6B7280', padding: '2px 6px' }}
+                                          title="Recount stock if physical correction needed"
+                                        >
+                                          Recount
+                                        </button>
+                                      </div>
+                                    )
                                   ) : (
-                                    <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 500 }}>
-                                      Statement Filed
+                                    <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                      {inw.stockist_appeal_needed ? (
+                                        <button
+                                          onClick={() => {
+                                            setSelectedInwardForStatement(inw);
+                                            setStockistStatementInput('');
+                                          }}
+                                          className="btn btn-xs"
+                                          style={{ backgroundColor: '#DC2626', color: '#FFFFFF', border: '1px solid #DC2626', fontWeight: 600, padding: '3px 8px' }}
+                                          title="Owner disputed your count. Submit appeal / clarification"
+                                        >
+                                          Submit Appeal
+                                        </button>
+                                      ) : inw.admin_review_pending ? (
+                                        <span style={{ fontSize: '11px', color: '#1E40AF', backgroundColor: '#DBEAFE', padding: '3px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                                          Appeal Under Review
+                                        </span>
+                                      ) : inw.has_discrepancy && !inw.stockist_statement ? (
+                                        <button
+                                          onClick={() => {
+                                            setSelectedInwardForStatement(inw);
+                                            setStockistStatementInput(inw.stockist_remarks || '');
+                                          }}
+                                          className="btn btn-xs"
+                                          style={{ backgroundColor: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', fontWeight: 600, padding: '3px 8px' }}
+                                        >
+                                          Submit Statement
+                                        </button>
+                                      ) : isVerified ? (
+                                        <span style={{ fontSize: '11px', color: '#166534', fontWeight: 600, backgroundColor: '#DCFCE7', padding: '3px 8px', borderRadius: '10px' }}>
+                                          Audited &amp; Verified
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 500 }}>
+                                          Statement Filed
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: VENDOR DEBIT CLAIMS (SHORTAGE TRACKER) */}
+              {auditTrayTab === 'VENDOR_CLAIMS' && (
+                <div>
+                  {/* KPI Summary Banner */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#991B1B', textTransform: 'uppercase' }}>
+                        Pending Supplier Deductions
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: '#991B1B', marginTop: '4px' }}>
+                        ₹{claimsSummary.pending_total}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#B91C1C' }}>
+                        {claimsSummary.pending_count} active claims to deduct from upcoming vendor bills
+                      </div>
+                    </div>
+                    <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '12px 16px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>
+                        Total Settled Claims
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: '#166534', marginTop: '4px' }}>
+                        ₹{claimsSummary.settled_total}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#15803D' }}>
+                        Successfully recovered via credit notes &amp; bill deductions
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {[
+                        { id: 'all', label: 'All Claims' },
+                        { id: 'PENDING_SETTLEMENT', label: 'Pending Settlement' },
+                        { id: 'SETTLED', label: 'Settled' }
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setClaimFilter(tab.id);
+                            loadVendorClaims(tab.id);
+                          }}
+                          className={`btn btn-xs ${claimFilter === tab.id ? 'btn-primary' : 'btn-secondary'}`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                      {vendorClaims.length} records
+                    </div>
+                  </div>
+
+                  {claimsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
+                      Loading vendor claims...
+                    </div>
+                  ) : vendorClaims.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)', backgroundColor: '#F8F6F0', borderRadius: '6px' }}>
+                      No vendor debit claims found for this filter.
+                    </div>
+                  ) : (
+                    <div className="ledger-table-container" style={{ border: '1px solid var(--color-stone-light)', borderRadius: '8px', overflowX: 'auto', maxHeight: '52vh' }}>
+                      <table className="ledger-table" style={{ width: '100%', minWidth: '950px' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '130px' }}>Claim ID &amp; Date</th>
+                            <th style={{ minWidth: '160px' }}>Supplier &amp; Bill #</th>
+                            <th style={{ minWidth: '160px' }}>Missing Product</th>
+                            <th style={{ width: '90px', textAlign: 'center' }}>Shortage Qty</th>
+                            <th style={{ width: '90px', textAlign: 'right' }}>Unit Cost</th>
+                            <th style={{ width: '110px', textAlign: 'right' }}>Claim Amount</th>
+                            <th style={{ width: '140px', textAlign: 'center' }}>Status</th>
+                            <th style={{ width: '160px', textAlign: 'right', paddingRight: '14px' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {vendorClaims.map((c) => {
+                            const isPending = c.status === 'PENDING_SETTLEMENT';
+                            return (
+                              <tr key={c.id || c.claim_id}>
+                                <td style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                                  <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#0F172A' }}>{c.claim_id}</div>
+                                  <div>{new Date(c.created_at).toLocaleDateString('en-IN')}</div>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{c.supplier_name}</div>
+                                  <div style={{ fontSize: '11px', color: 'var(--color-forest)' }}>Bill: #{c.supplier_bill_no}</div>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{c.product_name}</div>
+                                  <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--color-muted)' }}>{c.sku}</div>
+                                </td>
+                                <td className="tabular-nums" style={{ textAlign: 'center', fontWeight: 700, color: '#991B1B' }}>
+                                  -{c.shortage_qty}
+                                </td>
+                                <td className="tabular-nums" style={{ textAlign: 'right' }}>
+                                  ₹{c.unit_cost}
+                                </td>
+                                <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 800, color: '#991B1B' }}>
+                                  ₹{c.claim_amount}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      backgroundColor: isPending ? '#FEE2E2' : '#DCFCE7',
+                                      color: isPending ? '#991B1B' : '#166534'
+                                    }}
+                                  >
+                                    {isPending ? 'Pending Deduction' : 'Settled'}
+                                  </span>
+                                  {!isPending && c.settlement_type && (
+                                    <div style={{ fontSize: '10px', color: '#64748B', marginTop: '2px' }}>
+                                      {c.settlement_type.replace(/_/g, ' ')}
+                                      {c.settlement_ref ? ` (${c.settlement_ref})` : ''}
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'right', paddingRight: '14px' }}>
+                                  {isPending && isAdmin ? (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedClaimForSettle(c);
+                                        setSettleType('DEDUCTED_FROM_BILL');
+                                        setSettleRef('');
+                                        setSettleNotes('');
+                                      }}
+                                      className="btn btn-xs"
+                                      style={{ backgroundColor: '#166534', color: '#FFFFFF', border: '1px solid #166534', fontWeight: 600 }}
+                                    >
+                                      Settle / Deduct
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontSize: '11px', color: '#64748B' }}>
+                                      {isPending ? 'Pending Owner' : 'Cleared'}
                                     </span>
                                   )}
-                                </div>
-                              )}
-                            </td>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: PROMOTIONAL & FESTIVAL GIFT VAULT */}
+              {auditTrayTab === 'GIFT_VAULT' && (
+                <div>
+                  {/* KPI Summary Banner */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+                    <div style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '6px', padding: '10px 14px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E', textTransform: 'uppercase' }}>
+                        Pending Allocation
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#92400E', marginTop: '2px' }}>
+                        {giftsSummary.pending_allocation_count}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#B45309' }}>Awaiting Owner routing</div>
+                    </div>
+                    <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '6px', padding: '10px 14px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#1E40AF', textTransform: 'uppercase' }}>
+                        Customer Schemes
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#1E40AF', marginTop: '2px' }}>
+                        {giftsSummary.active_schemes_count}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#1E3A8A' }}>Active bundle bonuses</div>
+                    </div>
+                    <div style={{ backgroundColor: '#FAF5FF', border: '1px solid #E9D5FF', borderRadius: '6px', padding: '10px 14px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#6B21A8', textTransform: 'uppercase' }}>
+                        Festival &amp; Diwali Vault
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#6B21A8', marginTop: '2px' }}>
+                        {giftsSummary.festival_vault_count}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#581C87' }}>Client relations gifts</div>
+                    </div>
+                    <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '6px', padding: '10px 14px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>
+                        Store / Owner Assets
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#166534', marginTop: '2px' }}>
+                        {giftsSummary.store_assets_count}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#15803D' }}>Shop utility items</div>
+                    </div>
+                  </div>
+
+                  {/* Filter Tabs */}
+                  <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {[
+                        { id: 'all', label: 'All Gifts' },
+                        { id: 'PENDING_ADMIN_ALLOCATION', label: 'Pending Allocation' },
+                        { id: 'CUSTOMER_PROMO_SCHEME', label: 'Customer Schemes' },
+                        { id: 'FESTIVAL_DIWALI_VAULT', label: 'Diwali & Festival Vault' },
+                        { id: 'OWNER_STORE_ASSET', label: 'Store Assets' },
+                        { id: 'SELLABLE_STOCK', label: 'Sellable Stock' }
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setGiftFilter(tab.id);
+                            loadPromotionalGifts(tab.id);
+                          }}
+                          className={`btn btn-xs ${giftFilter === tab.id ? 'btn-primary' : 'btn-secondary'}`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                      {promotionalGifts.length} items
+                    </div>
+                  </div>
+
+                  {giftsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
+                      Loading promotional gift vault...
+                    </div>
+                  ) : promotionalGifts.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)', backgroundColor: '#F8F6F0', borderRadius: '6px' }}>
+                      No promotional gift items recorded yet.
+                    </div>
+                  ) : (
+                    <div className="ledger-table-container" style={{ border: '1px solid var(--color-stone-light)', borderRadius: '8px', overflowX: 'auto', maxHeight: '52vh' }}>
+                      <table className="ledger-table" style={{ width: '100%', minWidth: '950px' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '180px' }}>Gift Item &amp; Qty</th>
+                            <th style={{ minWidth: '160px' }}>Source Shipment</th>
+                            <th style={{ width: '150px' }}>Allocation Type</th>
+                            <th style={{ minWidth: '220px' }}>Scheme Rule / Recipient Notes</th>
+                            <th style={{ width: '140px', textAlign: 'right', paddingRight: '14px' }}>Actions</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {promotionalGifts.map((g) => {
+                            const isPending = g.status === 'PENDING_ADMIN_ALLOCATION';
+                            const isScheme = g.allocation_type === 'CUSTOMER_PROMO_SCHEME';
+                            const isVault = g.allocation_type === 'FESTIVAL_DIWALI_VAULT';
+                            const isAsset = g.allocation_type === 'OWNER_STORE_ASSET';
+                            const isSellable = g.allocation_type === 'SELLABLE_STOCK';
+
+                            return (
+                              <tr key={g.id || g.gift_id}>
+                                <td>
+                                  <div style={{ fontWeight: 700, color: '#0F172A' }}>{g.item_name}</div>
+                                  <div style={{ fontSize: '11px', color: '#166534', fontWeight: 600 }}>
+                                    Total: {g.quantity} Pcs {g.remaining_qty !== undefined && g.remaining_qty < g.quantity ? `(${g.remaining_qty} remaining)` : ''}
+                                  </div>
+                                  {g.challan_reference && (
+                                    <div style={{ fontSize: '10.5px', color: '#64748B', fontStyle: 'italic' }}>
+                                      Ref: {g.challan_reference}
+                                    </div>
+                                  )}
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{g.supplier_name}</div>
+                                  <div style={{ fontSize: '11px', color: 'var(--color-forest)' }}>Bill: #{g.supplier_bill_no}</div>
+                                  <div style={{ fontSize: '10.5px', color: 'var(--color-muted)' }}>Received by {g.received_by_name}</div>
+                                </td>
+                                <td>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      backgroundColor: isPending ? '#FEF3C7' : isScheme ? '#DBEAFE' : isVault ? '#F3E8FF' : isAsset ? '#DCFCE7' : '#CCFBF1',
+                                      color: isPending ? '#92400E' : isScheme ? '#1E40AF' : isVault ? '#6B21A8' : isAsset ? '#166534' : '#0F766E'
+                                    }}
+                                  >
+                                    {isPending ? 'Pending Owner Routing' : g.allocation_type.replace(/_/g, ' ')}
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: '11.5px' }}>
+                                  {isScheme && g.scheme_rule && (
+                                    <div>
+                                      <span style={{ fontWeight: 600, color: '#1E40AF' }}>Rule:</span> Buy {g.scheme_rule.min_purchase_qty}x {g.scheme_rule.target_product_name || 'Units'} &rarr; Get 1 Free
+                                    </div>
+                                  )}
+                                  {isVault && g.vault_details && (
+                                    <div>
+                                      <div><span style={{ fontWeight: 600 }}>Reserved For:</span> {g.vault_details.person_name} {g.vault_details.contact ? `(${g.vault_details.contact})` : ''}</div>
+                                      {g.vault_details.vault_notes && (
+                                        <div style={{ fontStyle: 'italic', color: '#64748B' }}>"{g.vault_details.vault_notes}"</div>
+                                      )}
+                                      <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: g.vault_details.vault_status === 'HANDED_OVER' ? '#DCFCE7' : '#FEF3C7', color: g.vault_details.vault_status === 'HANDED_OVER' ? '#166534' : '#92400E' }}>
+                                        {g.vault_details.vault_status || 'RESERVED'}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {isAsset && (
+                                    <div style={{ color: '#166534' }}>
+                                      Store Owner / Shop Internal Asset (Not for Sale)
+                                    </div>
+                                  )}
+                                  {isSellable && (
+                                    <div style={{ color: '#0F766E' }}>
+                                      Added to active stock at ₹0 purchase cost
+                                    </div>
+                                  )}
+                                  {isPending && (
+                                    <div style={{ color: '#B45309', fontStyle: 'italic' }}>
+                                      Awaiting Store Owner Decision
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'right', paddingRight: '14px' }}>
+                                  {isAdmin ? (
+                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedGiftForAllocation(g);
+                                          setGiftAllocType('CUSTOMER_PROMO_SCHEME');
+                                          setGiftMinQty('2');
+                                          setGiftTargetProdId(g.product_id ? String(g.product_id) : '');
+                                          setGiftPersonName('');
+                                          setGiftContact('');
+                                          setGiftVaultNotes('');
+                                          setGiftSellingPrice('');
+                                        }}
+                                        className="btn btn-xs"
+                                        style={{ backgroundColor: '#1E40AF', color: '#FFFFFF', border: '1px solid #1E40AF', fontWeight: 600 }}
+                                      >
+                                        {isPending ? 'Assign Allocation' : 'Reallocate'}
+                                      </button>
+                                      {isVault && g.vault_details?.vault_status !== 'HANDED_OVER' && (
+                                        <button
+                                          onClick={() => {
+                                            setSelectedGiftForHandover(g);
+                                            setHandoverRecipient(g.vault_details?.person_name || '');
+                                            setHandoverNotes('');
+                                          }}
+                                          className="btn btn-xs"
+                                          style={{ backgroundColor: '#166534', color: '#FFFFFF', border: '1px solid #166534', fontWeight: 600 }}
+                                        >
+                                          Mark Handed Over
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: '11px', color: '#64748B' }}>
+                                      Logged
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1760,6 +2541,278 @@ export const InventoryView = () => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settle Vendor Debit Claim Modal */}
+      {selectedClaimForSettle && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-sheet" style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '15px', color: '#991B1B' }}>Settle Vendor Shortage Claim</h3>
+              <button onClick={() => setSelectedClaimForSettle(null)} className="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <form onSubmit={handleSettleClaim}>
+              <div className="modal-body">
+                <div style={{ fontSize: '12.5px', marginBottom: '12px', backgroundColor: '#FEF2F2', padding: '10px', borderRadius: '6px' }}>
+                  Supplier: <b>{selectedClaimForSettle.supplier_name}</b> (Bill #{selectedClaimForSettle.supplier_bill_no})
+                  <br />
+                  Item Short: <b>{selectedClaimForSettle.shortage_qty} units of {selectedClaimForSettle.product_name}</b>
+                  <div style={{ marginTop: '4px', fontSize: '14px', fontWeight: 800, color: '#991B1B' }}>
+                    Total Claim Amount: ₹{selectedClaimForSettle.claim_amount}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Settlement Method *</label>
+                  <select
+                    className="form-select"
+                    value={settleType}
+                    onChange={(e) => setSettleType(e.target.value)}
+                  >
+                    <option value="DEDUCTED_FROM_BILL">Deducted from Supplier Bill Payment</option>
+                    <option value="CREDIT_NOTE_RECEIVED">Supplier Issued Credit Note</option>
+                    <option value="CASH_REFUND">Cash / Bank Transfer Refund</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Payment / Credit Note Reference Voucher</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Deducted on Payment VCH-8891 or CN-4402"
+                    value={settleRef}
+                    onChange={(e) => setSettleRef(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Settlement Notes (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Agreed with vendor representative on phone"
+                    value={settleNotes}
+                    onChange={(e) => setSettleNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setSelectedClaimForSettle(null)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={settlingClaim} className="btn btn-primary" style={{ backgroundColor: '#166534', borderColor: '#166534' }}>
+                  {settlingClaim ? 'Recording...' : 'Confirm Claim Settlement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Gift Allocation Modal */}
+      {selectedGiftForAllocation && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-sheet" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '15px', color: '#1E40AF' }}>
+                Allocate Promotional Gift (Store Owner)
+              </h3>
+              <button onClick={() => setSelectedGiftForAllocation(null)} className="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <form onSubmit={handleAllocateGift}>
+              <div className="modal-body">
+                <div style={{ fontSize: '12.5px', marginBottom: '12px', backgroundColor: '#EFF6FF', padding: '10px', borderRadius: '6px' }}>
+                  Gift: <b>{selectedGiftForAllocation.quantity}x {selectedGiftForAllocation.item_name}</b>
+                  <br />
+                  From: <b>{selectedGiftForAllocation.supplier_name}</b> (Bill #{selectedGiftForAllocation.supplier_bill_no})
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Choose Gift Allocation / Destination *</label>
+                  <select
+                    className="form-select"
+                    value={giftAllocType}
+                    onChange={(e) => setGiftAllocType(e.target.value)}
+                  >
+                    <option value="CUSTOMER_PROMO_SCHEME">Customer Promotional Scheme (Bundle Condition)</option>
+                    <option value="FESTIVAL_DIWALI_VAULT">Festival &amp; Diwali Vault (Client &amp; VIP Relations)</option>
+                    <option value="OWNER_STORE_ASSET">Store Owner / Shop Internal Asset (Not for Sale)</option>
+                    <option value="SELLABLE_STOCK">Sellable Inventory Stock (₹0 Purchase Cost)</option>
+                  </select>
+                </div>
+
+                {giftAllocType === 'CUSTOMER_PROMO_SCHEME' && (
+                  <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', padding: '10px 12px', borderRadius: '6px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#1E40AF', marginBottom: '6px' }}>
+                      Scheme Condition Rule (Customer Bonus at Billing)
+                    </div>
+                    <div className="form-group" style={{ marginBottom: '8px' }}>
+                      <label className="form-label">Minimum Purchase Quantity *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="any"
+                        required
+                        className="form-input"
+                        placeholder="e.g. 2 (Boxes/Units)"
+                        value={giftMinQty}
+                        onChange={(e) => setGiftMinQty(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Qualifying Product</label>
+                      <select
+                        className="form-select"
+                        value={giftTargetProdId}
+                        onChange={(e) => setGiftTargetProdId(e.target.value)}
+                      >
+                        <option value="">Any or Same Shipment Product</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.sku})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748B', marginTop: '6px' }}>
+                      When a customer buys {giftMinQty || 1} units on the invoice screen, this gift will be suggested as a free scheme item.
+                    </div>
+                  </div>
+                )}
+
+                {giftAllocType === 'FESTIVAL_DIWALI_VAULT' && (
+                  <div style={{ backgroundColor: '#FAF5FF', border: '1px solid #E9D5FF', padding: '10px 12px', borderRadius: '6px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#6B21A8', marginBottom: '6px' }}>
+                      Festival &amp; Client Relations Registry
+                    </div>
+                    <div className="form-group" style={{ marginBottom: '8px' }}>
+                      <label className="form-label">Reserved For Person / Organization *</label>
+                      <input
+                        type="text"
+                        required
+                        className="form-input"
+                        placeholder="e.g. Dr. Rajesh Sharma, City Hospital"
+                        value={giftPersonName}
+                        onChange={(e) => setGiftPersonName(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: '8px' }}>
+                      <label className="form-label">Contact Number (Optional)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. 9876543210"
+                        value={giftContact}
+                        onChange={(e) => setGiftContact(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Festival / Conversation Notes *</label>
+                      <textarea
+                        rows={2}
+                        required
+                        className="form-input"
+                        placeholder="e.g. Spoke on 4th Nov; promised for Diwali visit."
+                        value={giftVaultNotes}
+                        onChange={(e) => setGiftVaultNotes(e.target.value)}
+                        style={{ fontSize: '12px' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {giftAllocType === 'OWNER_STORE_ASSET' && (
+                  <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', padding: '10px 12px', borderRadius: '6px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '11.5px', color: '#166534' }}>
+                      This item will be cataloged in the Store Asset Register for store or personal use (e.g., umbrella, desk stand, promotional display). It cannot be sold or removed by staff.
+                    </div>
+                  </div>
+                )}
+
+                {giftAllocType === 'SELLABLE_STOCK' && (
+                  <div style={{ backgroundColor: '#F0FDFA', border: '1px solid #99F6E4', padding: '10px 12px', borderRadius: '6px', marginBottom: '10px' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Selling Price (₹) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        required
+                        className="form-input"
+                        placeholder="e.g. 50.00"
+                        value={giftSellingPrice}
+                        onChange={(e) => setGiftSellingPrice(e.target.value)}
+                      />
+                      <div style={{ fontSize: '11px', color: '#0F766E', marginTop: '4px' }}>
+                        Stock will be added at ₹0 purchase cost, giving 100% margin upon retail sale.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setSelectedGiftForAllocation(null)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submittingAlloc} className="btn btn-primary">
+                  {submittingAlloc ? 'Saving...' : 'Confirm Allocation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Festival Gift Handover Modal */}
+      {selectedGiftForHandover && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-sheet" style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '15px', color: '#166534' }}>Mark Festival Gift Handed Over</h3>
+              <button onClick={() => setSelectedGiftForHandover(null)} className="btn btn-ghost btn-sm">✕</button>
+            </div>
+            <form onSubmit={handleVaultAction}>
+              <div className="modal-body">
+                <div style={{ fontSize: '12.5px', marginBottom: '12px', backgroundColor: '#F0FDF4', padding: '10px', borderRadius: '6px' }}>
+                  Gift: <b>{selectedGiftForHandover.item_name}</b>
+                  <br />
+                  Reserved for: <b>{selectedGiftForHandover.vault_details?.person_name}</b>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Recipient Name / Receiver *</label>
+                  <input
+                    type="text"
+                    required
+                    className="form-input"
+                    value={handoverRecipient}
+                    onChange={(e) => setHandoverRecipient(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Handover Confirmation Notes</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Handed over in person during Diwali visit"
+                    value={handoverNotes}
+                    onChange={(e) => setHandoverNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setSelectedGiftForHandover(null)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submittingHandover} className="btn btn-primary" style={{ backgroundColor: '#166534', borderColor: '#166534' }}>
+                  {submittingHandover ? 'Updating...' : 'Confirm Handed Over'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
