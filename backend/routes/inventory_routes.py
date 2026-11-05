@@ -35,6 +35,13 @@ class ProductCreate(BaseModel):
     expiry_date: Optional[str] = ""
     part_number: Optional[str] = ""
     description: Optional[str] = ""
+    # Incoming Supplier Delivery & Discrepancy (optional for opening stock)
+    supplier_name: Optional[str] = "Opening Inventory"
+    supplier_bill_no: Optional[str] = "OPENING-STOCK"
+    has_discrepancy: Optional[bool] = False
+    billed_qty: Optional[float] = None
+    stockist_remarks: Optional[str] = ""
+    free_items: Optional[List[dict]] = []
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -203,26 +210,120 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
     if data.stock_qty > 0:
         staff_id = str(user.get("id") or user.get("_id") or user.get("username"))
         staff_name = user.get("full_name") or user.get("username", "Staff")
+        clean_supp_name = data.supplier_name.strip() if data.supplier_name else "Opening Inventory"
+        clean_bill_no = data.supplier_bill_no.strip() if data.supplier_bill_no else "OPENING-STOCK"
         
+        has_discrepancy = bool(data.has_discrepancy)
+        billed_qty = float(data.billed_qty) if data.billed_qty is not None and data.billed_qty > 0 else float(data.stock_qty)
+        shortage_qty = round(billed_qty - float(data.stock_qty), 3) if has_discrepancy and billed_qty > float(data.stock_qty) else 0.0
+        stockist_remarks = (data.stockist_remarks or "").strip()
+        
+        # Register any declared free promotional gifts in the vault
+        free_items_list = []
+        if data.free_items:
+            for item in data.free_items:
+                g_name = item.get("item_name", "").strip()
+                if not g_name:
+                    continue
+                g_qty = float(item.get("quantity", 1.0))
+                g_ref = item.get("supplier_challan_ref", "").strip() or clean_bill_no
+                gift_doc = {
+                    "gift_id": f"GFT-{int(datetime.now().timestamp())}-{len(free_items_list)+1}",
+                    "item_name": g_name,
+                    "quantity": g_qty,
+                    "supplier_name": clean_supp_name,
+                    "supplier_bill_no": clean_bill_no,
+                    "supplier_challan_ref": g_ref,
+                    "received_by_id": staff_id,
+                    "received_by_name": staff_name,
+                    "received_at": datetime.now(timezone.utc),
+                    "status": "PENDING_ADMIN_ALLOCATION",
+                    "allocation_type": None,
+                    "created_at": datetime.now(timezone.utc)
+                }
+                promotional_gifts_col.insert_one(gift_doc)
+                free_items_list.append(gift_doc)
+
+        now_utc = datetime.now(timezone.utc)
+        timeline_events = [
+            {
+                "event_id": "EVT-1",
+                "timestamp": now_utc,
+                "actor_name": staff_name,
+                "actor_role": user.get("role", "staff"),
+                "actor_username": user.get("username", "staff"),
+                "action": "ARRIVAL_LOGGED",
+                "title": f"Initial stock setup / delivery of {data.stock_qty} units",
+                "details": f"Supplier: {clean_supp_name}, Bill #{clean_bill_no}" + (
+                    f" [Shortage reported: {shortage_qty} units vs billed {billed_qty}]" if shortage_qty > 0 else ""
+                ) + (f" Note: \"{stockist_remarks}\"" if stockist_remarks else "")
+            }
+        ]
+        if free_items_list:
+            gift_summary_str = ", ".join([f"{fi.get('quantity')}x {fi.get('item_name')}" for fi in free_items_list])
+            timeline_events.append({
+                "event_id": f"EVT-{len(timeline_events)+1}",
+                "timestamp": now_utc,
+                "actor_name": staff_name,
+                "actor_role": user.get("role", "staff"),
+                "actor_username": user.get("username", "staff"),
+                "action": "FREE_GIFTS_DECLARED",
+                "title": f"Declared {len(free_items_list)} promotional / free gift item(s)",
+                "details": f"Gifts received: {gift_summary_str}. Routed to Store Owner for allocation."
+            })
+
+        inward_status = "PENDING_AUDIT"
+        if has_discrepancy and shortage_qty > 0:
+            inward_status = "FLAGGED_DISCREPANCY"
+            timeline_events.append({
+                "event_id": f"EVT-{len(timeline_events)+1}",
+                "timestamp": now_utc,
+                "actor_name": staff_name,
+                "actor_role": user.get("role", "staff"),
+                "actor_username": user.get("username", "staff"),
+                "action": "DISCREPANCY_FLAGGED_BY_STAFF",
+                "title": f"Staff flagged delivery shortage (-{shortage_qty} units)",
+                "details": f"Billed: {billed_qty}, Physically Received: {data.stock_qty}. Note: \"{stockist_remarks}\""
+            })
+        elif user.get("role") == "admin":
+            inward_status = "VERIFIED"
+
         inward_doc = {
             "product_id": ObjectId(product_id),
             "product_name": product_doc["name"],
             "sku": product_doc["sku"],
             "quantity_received": float(data.stock_qty),
             "stock_after": float(data.stock_qty),
-            "supplier_name": "Opening Inventory",
-            "supplier_bill_no": "OPENING-STOCK",
+            "supplier_name": clean_supp_name,
+            "supplier_bill_no": clean_bill_no,
             "supplier_bill_date": datetime.now().strftime("%Y-%m-%d"),
             "received_by_id": staff_id,
             "received_by_name": staff_name,
             "received_by_role": user.get("role", "staff"),
             "authorization_type": "NORMAL",
             "emergency_declaration": "",
-            "status": "PENDING_AUDIT" if user.get("role") != "admin" else "VERIFIED",
-            "created_at": datetime.now(timezone.utc),
-            "cron_reminder_sent": False
+            "has_discrepancy": has_discrepancy,
+            "billed_qty": billed_qty,
+            "discrepancy_qty": shortage_qty,
+            "stockist_remarks": stockist_remarks,
+            "free_items": free_items_list,
+            "status": inward_status,
+            "created_at": now_utc,
+            "cron_reminder_sent": False,
+            "audit_timeline": timeline_events
         }
-        stock_inwards_col.insert_one(inward_doc)
+        inw_res = stock_inwards_col.insert_one(inward_doc)
+        inward_id = str(inw_res.inserted_id)
+
+        if free_items_list:
+            promotional_gifts_col.update_many(
+                {"gift_id": {"$in": [fi["gift_id"] for fi in free_items_list]}},
+                {"$set": {"inward_id": ObjectId(inward_id)}}
+            )
+
+        ref_text = f"Initial stock: {data.stock_qty} {product_doc['unit']} from {clean_supp_name} (Bill #{clean_bill_no})"
+        if has_discrepancy and shortage_qty > 0:
+            ref_text += f" [Shortage: {shortage_qty} vs Billed {billed_qty}]"
 
         stock_movements_col.insert_one({
             "product_id": ObjectId(product_id),
@@ -231,20 +332,32 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
             "movement_type": "INITIAL_STOCK",
             "quantity_delta": data.stock_qty,
             "stock_after": data.stock_qty,
-            "reference": "Initial Inventory Opening",
+            "reference": ref_text,
             "created_by": user.get("username", "system"),
             "staff_name": staff_name,
-            "created_at": datetime.now(timezone.utc)
+            "inward_id": ObjectId(inward_id),
+            "created_at": now_utc
         })
 
-        # Trigger instant SMS alert for every new product stock inward (even if added by admin during testing)
+        discrepancy_info = None
+        if has_discrepancy and shortage_qty > 0:
+            discrepancy_info = {
+                "billed_qty": billed_qty,
+                "received_qty": data.stock_qty,
+                "shortage": shortage_qty,
+                "notes": stockist_remarks
+            }
+
+        # Trigger instant SMS alert for every new product stock inward
         notify_stock_inward(
             staff_name=staff_name,
             product_name=product_doc["name"],
             quantity=data.stock_qty,
-            supplier_name="New Product Creation",
-            supplier_bill_no="OPENING-STOCK",
-            auth_type="NORMAL"
+            supplier_name=clean_supp_name,
+            supplier_bill_no=clean_bill_no,
+            auth_type="NORMAL",
+            discrepancy_info=discrepancy_info,
+            free_items=free_items_list
         )
 
     return {
@@ -611,7 +724,7 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
         "created_at": datetime.now(timezone.utc)
     })
 
-    # Dispatch instant alert SMS to Store Owner (includes discrepancy statement if flagged)
+    # Dispatch instant alert SMS to Store Owner (includes discrepancy statement and promo gifts)
     sms_feedback = notify_stock_inward(
         staff_name=staff_name,
         product_name=p["name"],
@@ -620,7 +733,8 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
         supplier_bill_no=clean_bill_no,
         auth_type=auth_type,
         declaration=data.emergency_declaration,
-        discrepancy_info=discrepancy_info
+        discrepancy_info=discrepancy_info,
+        free_items=free_items_list
     )
 
     return {
@@ -991,6 +1105,15 @@ def submit_stockist_statement(
         "created_at": now_utc
     })
 
+    # Dispatch TextBee SMS alert to Store Owner
+    notify_stockist_statement(
+        staff_name=staff_name,
+        product_name=inw.get("product_name", "Stock Item"),
+        supplier_bill_no=inw.get("supplier_bill_no", "N/A"),
+        statement=stmt,
+        is_appeal=is_appeal
+    )
+
     return {
         "success": True,
         "message": "Statement submitted successfully. Store Owner will see this in the audit queue.",
@@ -1035,8 +1158,8 @@ def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
             or inw.get("stockist_statement_by") == u_name
         ]
         
-        # If user is not an inventory_manager AND has 0 inwards, strictly exclude them
-        if su.get("role") != "inventory_manager" and len(user_inwards) == 0:
+        # Strictly exclude any user with 0 inward records
+        if len(user_inwards) == 0:
             continue
 
         total = len(user_inwards)
@@ -1050,20 +1173,19 @@ def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
         audited_total = verified + rejected
         if audited_total > 0:
             accuracy_rate = round((verified / audited_total) * 100, 1)
-        elif total > 0:
-            accuracy_rate = 100.0
+            if accuracy_rate >= 90:
+                rating_text = "High Accuracy"
+                rating_color = "#166534"
+            elif accuracy_rate >= 70:
+                rating_text = "Moderate Accuracy"
+                rating_color = "#B45309"
+            else:
+                rating_text = "Needs Improvement"
+                rating_color = "#991B1B"
         else:
-            accuracy_rate = 100.0
-
-        if accuracy_rate >= 90:
-            rating_text = "High Accuracy"
-            rating_color = "#166534"
-        elif accuracy_rate >= 70:
-            rating_text = "Moderate Accuracy"
-            rating_color = "#B45309"
-        else:
-            rating_text = "Needs Improvement"
-            rating_color = "#991B1B"
+            accuracy_rate = None
+            rating_text = "Pending First Audit"
+            rating_color = "#475569"
 
         performance_list.append({
             "staff_id": u_id,
@@ -1084,10 +1206,13 @@ def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
 
     # If the requester is a stockist/staff (not admin), return ONLY their personal metrics
     if user.get("role") != "admin":
-        curr_u = user.get("username")
-        curr_id = str(user.get("id") or user.get("_id") or "")
-        filtered = [p for p in performance_list if p["username"] == curr_u or p["staff_id"] == curr_id]
-        return filtered if filtered else performance_list
+        curr_u = (user.get("username") or "").lower().strip()
+        curr_id = str(user.get("id") or user.get("_id") or "").strip()
+        filtered = [
+            p for p in performance_list
+            if (p["username"] or "").lower().strip() == curr_u or str(p["staff_id"]).strip() == curr_id
+        ]
+        return filtered
 
     return performance_list
 

@@ -48,6 +48,20 @@ export const InventoryView = () => {
   const [inwardGiftQty, setInwardGiftQty] = useState('1');
   const [inwardGiftRef, setInwardGiftRef] = useState('');
 
+  // Stockist Performance State
+  const [stockistPerformance, setStockistPerformance] = useState([]);
+
+  // New Product Inward Delivery & Promo Gift State
+  const [newProdSupplier, setNewProdSupplier] = useState('');
+  const [newProdBillNo, setNewProdBillNo] = useState('');
+  const [newProdHasDiscrepancy, setNewProdHasDiscrepancy] = useState(false);
+  const [newProdBilledQty, setNewProdBilledQty] = useState('');
+  const [newProdStockistRemarks, setNewProdStockistRemarks] = useState('');
+  const [newProdHasGift, setNewProdHasGift] = useState(false);
+  const [newProdGiftName, setNewProdGiftName] = useState('');
+  const [newProdGiftQty, setNewProdGiftQty] = useState('1');
+  const [newProdGiftRef, setNewProdGiftRef] = useState('');
+
   // Stock Audit Tray Modal State
   const [showAuditTrayModal, setShowAuditTrayModal] = useState(false);
   const [auditTrayTab, setAuditTrayTab] = useState('INWARDS'); // 'INWARDS' | 'VENDOR_CLAIMS' | 'GIFT_VAULT'
@@ -167,6 +181,8 @@ export const InventoryView = () => {
   useEffect(() => {
     loadProducts();
     loadInwardAlerts();
+    loadVendorClaims('all');
+    loadPromotionalGifts('all');
   }, [categoryFilter, statusFilter, dataVersion]);
 
   const handleSearchSubmit = (e) => {
@@ -182,6 +198,15 @@ export const InventoryView = () => {
     setLooseUnit('Pcs');
     setPkgQty(10);
     setStockPackages('');
+    setNewProdSupplier('');
+    setNewProdBillNo('');
+    setNewProdHasDiscrepancy(false);
+    setNewProdBilledQty('');
+    setNewProdStockistRemarks('');
+    setNewProdHasGift(false);
+    setNewProdGiftName('');
+    setNewProdGiftQty('1');
+    setNewProdGiftRef('');
     setShowProductModal(true);
   };
 
@@ -270,6 +295,25 @@ export const InventoryView = () => {
         package_selling_price: actualPkgPrice
       };
 
+      if (!editingProduct) {
+        payload.supplier_name = newProdSupplier.trim() || 'Opening Inventory';
+        payload.supplier_bill_no = newProdBillNo.trim() || 'OPENING-STOCK';
+        payload.has_discrepancy = newProdHasDiscrepancy;
+        payload.billed_qty = newProdHasDiscrepancy && newProdBilledQty ? parseFloat(newProdBilledQty) : null;
+        payload.stockist_remarks = newProdStockistRemarks.trim();
+        if (newProdHasGift && newProdGiftName.trim()) {
+          payload.free_items = [
+            {
+              item_name: newProdGiftName.trim(),
+              quantity: parseFloat(newProdGiftQty) || 1,
+              supplier_challan_ref: newProdGiftRef.trim() || newProdBillNo.trim() || 'OPENING-STOCK'
+            }
+          ];
+        } else {
+          payload.free_items = [];
+        }
+      }
+
       const url = editingProduct ? `/api/inventory/${editingProduct.id}` : '/api/inventory';
       const method = editingProduct ? 'PUT' : 'POST';
 
@@ -286,6 +330,9 @@ export const InventoryView = () => {
       showToast(data.message || 'Product saved successfully.', 'success');
       setShowProductModal(false);
       loadProducts();
+      loadInwardAlerts();
+      loadVendorClaims('all');
+      loadPromotionalGifts('all');
       refreshData();
     } catch (err) {
       showToast(err.message, 'error');
@@ -631,6 +678,7 @@ export const InventoryView = () => {
     loadVendorClaims(claimFilter);
     loadPromotionalGifts(giftFilter);
     loadInwardAlerts();
+    loadStockistPerformance();
   };
 
   const handleStockistStatementSubmit = async (e) => {
@@ -953,7 +1001,7 @@ export const InventoryView = () => {
               Stock Ledger
             </button>
 
-            <button onClick={openAuditTray} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <button onClick={() => openAuditTray('INWARDS')} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
               <span>Stock Audit Tray</span>
               {inwardAlerts?.total_alert_count > 0 && (
                 <span
@@ -968,6 +1016,70 @@ export const InventoryView = () => {
                   }}
                 >
                   {inwardAlerts.total_alert_count}
+                </span>
+              )}
+            </button>
+
+            {/* Direct Button: Vendor Debit Claims */}
+            <button
+              onClick={() => openAuditTray('VENDOR_CLAIMS')}
+              className="btn btn-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderColor: claimsSummary?.pending_count > 0 ? '#FCA5A5' : undefined,
+                backgroundColor: claimsSummary?.pending_count > 0 ? '#FEF2F2' : undefined,
+                color: claimsSummary?.pending_count > 0 ? '#991B1B' : undefined,
+                fontWeight: claimsSummary?.pending_count > 0 ? 600 : undefined
+              }}
+              title="Open Vendor Debit Claims Tray to deduct shortage amounts from supplier payments"
+            >
+              <span>Vendor Debit Claims</span>
+              {claimsSummary?.pending_count > 0 && (
+                <span
+                  style={{
+                    backgroundColor: '#DC2626',
+                    color: '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: '10px'
+                  }}
+                >
+                  ₹{claimsSummary.pending_total} ({claimsSummary.pending_count})
+                </span>
+              )}
+            </button>
+
+            {/* Direct Button: Gift & Scheme Vault */}
+            <button
+              onClick={() => openAuditTray('GIFT_VAULT')}
+              className="btn btn-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderColor: giftsSummary?.pending_allocation_count > 0 ? '#BAE6FD' : undefined,
+                backgroundColor: giftsSummary?.pending_allocation_count > 0 ? '#F0F9FF' : undefined,
+                color: giftsSummary?.pending_allocation_count > 0 ? '#0369A1' : undefined,
+                fontWeight: giftsSummary?.pending_allocation_count > 0 ? 600 : undefined
+              }}
+              title="Open Gift & Scheme Vault to manage supplier promotional gifts & customer schemes"
+            >
+              <span>Gift &amp; Scheme Vault</span>
+              {giftsSummary?.pending_allocation_count > 0 && (
+                <span
+                  style={{
+                    backgroundColor: '#0284C7',
+                    color: '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: '10px'
+                  }}
+                >
+                  {giftsSummary.pending_allocation_count} Pending
                 </span>
               )}
             </button>
@@ -1464,6 +1576,132 @@ export const InventoryView = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Incoming Supplier Delivery & Discrepancy / Promotional Gifts (New Product Only) */}
+                {!editingProduct && (
+                  <div style={{ padding: '12px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '6px', marginTop: '10px' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#1E293B', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>Incoming Supplier Delivery &amp; Inward Details (Optional)</span>
+                      <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Records audit bill &amp; promotional gifts</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', marginBottom: '10px' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: '11.5px' }}>Supplier / Vendor Name</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. Bharat Stationary"
+                          value={newProdSupplier}
+                          onChange={(e) => setNewProdSupplier(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: '11.5px' }}>Supplier Bill / Invoice #</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. #BHS-1010"
+                          value={newProdBillNo}
+                          onChange={(e) => setNewProdBillNo(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Discrepancy Checkbox & Fields */}
+                    <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: '8px', marginTop: '6px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#991B1B' }}>
+                        <input
+                          type="checkbox"
+                          checked={newProdHasDiscrepancy}
+                          onChange={(e) => setNewProdHasDiscrepancy(e.target.checked)}
+                        />
+                        <span>Report Delivery Shortage / Bill Discrepancy on Initial Stock</span>
+                      </label>
+                      {newProdHasDiscrepancy && (
+                        <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '6px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '8px' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label className="form-label" style={{ fontSize: '11px', color: '#991B1B' }}>Billed Qty on Invoice *</label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                required={newProdHasDiscrepancy}
+                                className="form-input"
+                                placeholder="e.g. 100"
+                                value={newProdBilledQty}
+                                onChange={(e) => setNewProdBilledQty(e.target.value)}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label className="form-label" style={{ fontSize: '11px', color: '#991B1B' }}>Shortage Explanation / Reason *</label>
+                              <input
+                                type="text"
+                                required={newProdHasDiscrepancy}
+                                className="form-input"
+                                placeholder="e.g. 5 units short in carton delivery; contacted distributor."
+                                value={newProdStockistRemarks}
+                                onChange={(e) => setNewProdStockistRemarks(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Free Promotional Gifts Checkbox & Fields */}
+                    <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: '8px', marginTop: '8px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#1E40AF' }}>
+                        <input
+                          type="checkbox"
+                          checked={newProdHasGift}
+                          onChange={(e) => setNewProdHasGift(e.target.checked)}
+                        />
+                        <span>Free Promotional / Festival Gift Merchandise Included</span>
+                      </label>
+                      {newProdHasGift && (
+                        <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '6px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr', gap: '8px' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label className="form-label" style={{ fontSize: '11px', color: '#1E40AF' }}>Gift Item Name *</label>
+                              <input
+                                type="text"
+                                required={newProdHasGift}
+                                className="form-input"
+                                placeholder="e.g. 3x Trial Fine Pens"
+                                value={newProdGiftName}
+                                onChange={(e) => setNewProdGiftName(e.target.value)}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label className="form-label" style={{ fontSize: '11px', color: '#1E40AF' }}>Gift Quantity *</label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="1"
+                                required={newProdHasGift}
+                                className="form-input"
+                                value={newProdGiftQty}
+                                onChange={(e) => setNewProdGiftQty(e.target.value)}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label className="form-label" style={{ fontSize: '11px', color: '#1E40AF' }}>Challan / Promo Ref</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="e.g. Free sample with box"
+                                value={newProdGiftRef}
+                                onChange={(e) => setNewProdGiftRef(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer">
@@ -1799,7 +2037,7 @@ export const InventoryView = () => {
       {/* Admin Stock Inward Audit Tray Modal */}
       {showAuditTrayModal && (
         <div className="modal-backdrop">
-          <div className="modal-sheet modal-sheet-lg" style={{ maxWidth: '1100px', width: '96vw' }}>
+          <div className="modal-sheet modal-sheet-lg" style={{ maxWidth: '1180px', width: '96vw' }}>
             <div className="modal-header">
               <div>
                 <h3 style={{ margin: 0, fontSize: '16px' }}>Stock Inward, Claims &amp; Gift Audit Tray</h3>
@@ -1887,6 +2125,74 @@ export const InventoryView = () => {
               {/* TAB 1: SHIPMENT INWARD AUDIT */}
               {auditTrayTab === 'INWARDS' && (
                 <div>
+                  {/* Stockist Inward & Audit Performance */}
+                  {stockistPerformance && stockistPerformance.length > 0 && (
+                    <div style={{ padding: '12px 14px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div>
+                          <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>{isAdmin ? 'Stockist Inward & Audit Performance' : 'My Receiving & Audit Performance'}</span>
+                            <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '1px 8px', borderRadius: '10px', backgroundColor: '#F1F5F9', color: '#475569' }}>
+                              Storekeeper
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                            {isAdmin
+                              ? 'Tracking count accuracy, physical bill matching, and verified arrival statements.'
+                              : 'Your physical receiving count accuracy and verified arrival records audited by Store Owner.'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
+                        {stockistPerformance.map((sp) => {
+                          const hasAudited = sp.accuracy_rate !== null && sp.accuracy_rate !== undefined;
+                          return (
+                            <div
+                              key={sp.username}
+                              style={{
+                                padding: '10px 12px',
+                                backgroundColor: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: '6px',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                                <div style={{ fontWeight: 600, fontSize: '12.5px', color: '#0F172A' }}>
+                                  {sp.full_name || sp.username}
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    backgroundColor: hasAudited ? (sp.accuracy_rate >= 90 ? '#DCFCE7' : sp.accuracy_rate >= 70 ? '#FEF3C7' : '#FEE2E2') : '#F1F5F9',
+                                    color: hasAudited ? (sp.accuracy_rate >= 90 ? '#166534' : sp.accuracy_rate >= 70 ? '#B45309' : '#991B1B') : '#475569'
+                                  }}
+                                >
+                                  {hasAudited ? `${sp.accuracy_rate}% Accuracy` : 'Pending First Audit'}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: '#64748B', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                <span><b>{sp.verified_count}</b> verified</span>
+                                <span>•</span>
+                                <span><b>{sp.rejected_count}</b> rejected</span>
+                                {sp.discrepancy_count > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span style={{ color: '#B45309' }}><b>{sp.discrepancy_count}</b> shortages</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Filter Tabs */}
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -1923,17 +2229,17 @@ export const InventoryView = () => {
                     </div>
                   ) : (
                     <div className="ledger-table-container" style={{ border: '1px solid var(--color-stone-light)', borderRadius: '8px', overflowX: 'auto', maxHeight: '54vh' }}>
-                      <table className="ledger-table" style={{ width: '100%', minWidth: '980px' }}>
+                      <table className="ledger-table" style={{ width: '100%', minWidth: '1060px' }}>
                         <thead>
                           <tr>
                             <th style={{ width: '135px' }}>Date &amp; Time</th>
                             <th style={{ width: '180px' }}>Product &amp; SKU</th>
                             <th style={{ width: '85px', textAlign: 'center' }}>Inward Qty</th>
-                            <th style={{ minWidth: '160px' }}>Supplier &amp; Bill #</th>
+                            <th style={{ minWidth: '170px' }}>Supplier &amp; Bill #</th>
                             <th style={{ width: '110px' }}>Received By</th>
                             <th style={{ width: '105px' }}>Auth Mode</th>
                             <th style={{ width: '150px', textAlign: 'center' }}>Status &amp; Audit Trail</th>
-                            <th style={{ width: '220px', textAlign: 'right', paddingRight: '14px' }}>Actions</th>
+                            <th style={{ width: '250px', textAlign: 'right', paddingRight: '16px' }}>Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1957,8 +2263,31 @@ export const InventoryView = () => {
                                   <div style={{ fontWeight: 600 }}>{inw.supplier_name}</div>
                                   <div style={{ fontSize: '11px', color: 'var(--color-forest)' }}>Bill: #{inw.supplier_bill_no}</div>
                                   {inw.has_discrepancy && (
-                                    <div style={{ fontSize: '10.5px', color: '#B45309', marginTop: '2px', fontWeight: 600 }}>
-                                      Shortage: {inw.discrepancy_qty} units (Billed {inw.billed_qty})
+                                    <div>
+                                      <div style={{ fontSize: '10.5px', color: '#B45309', marginTop: '2px', fontWeight: 600 }}>
+                                        Shortage: {inw.discrepancy_qty} units (Billed {inw.billed_qty})
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAuditTrayTab('VENDOR_CLAIMS');
+                                          loadVendorClaims(claimFilter);
+                                        }}
+                                        className="btn btn-ghost btn-xs"
+                                        style={{
+                                          fontSize: '10px',
+                                          color: '#991B1B',
+                                          backgroundColor: '#FEF2F2',
+                                          border: '1px solid #FCA5A5',
+                                          padding: '1px 6px',
+                                          borderRadius: '4px',
+                                          marginTop: '3px',
+                                          cursor: 'pointer'
+                                        }}
+                                        title="Jump to Vendor Debit Claims Tray"
+                                      >
+                                        View in Vendor Debit Claims
+                                      </button>
                                     </div>
                                   )}
                                   {inw.free_items && inw.free_items.length > 0 && (
@@ -2095,14 +2424,14 @@ export const InventoryView = () => {
                                           style={{
                                             fontSize: '11px',
                                             fontWeight: 600,
-                                            padding: '2px 8px',
-                                            borderRadius: '10px',
+                                            padding: '3px 8px',
+                                            borderRadius: '6px',
                                             backgroundColor: inw.admin_decision === 'REJECTED' ? '#FEE2E2' : '#DCFCE7',
                                             color: inw.admin_decision === 'REJECTED' ? '#991B1B' : '#166534',
                                             whiteSpace: 'nowrap'
                                           }}
                                         >
-                                          Audited by {inw.audited_by || 'Admin'}
+                                          Audited by {inw.audited_by_name || (inw.audited_by === 'admin' ? 'Admin' : inw.audited_by || 'Admin')}
                                           {inw.admin_decision === 'RESOLVED_RECOUNT' && ' (Recounted)'}
                                         </span>
                                         <button

@@ -104,37 +104,42 @@ def notify_stock_inward(
     supplier_bill_no: str,
     auth_type: str,
     declaration: Optional[str] = None,
-    discrepancy_info: Optional[dict] = None
+    discrepancy_info: Optional[dict] = None,
+    free_items: Optional[list] = None
 ) -> dict:
-    """Instant alert triggered within 0-5s when staff logs stock inward, including discrepancy statements if flagged."""
+    """Instant alert triggered within 0-5s when staff logs stock inward, including discrepancy statements and promotional gifts."""
     phone, owner_name = get_admin_phone_and_name()
     if not phone:
         return {"success": False, "message": "No admin phone configured"}
 
     qty_str = f"{int(quantity)}" if float(quantity).is_integer() else f"{quantity}"
+    gift_suffix = ""
+    if free_items and len(free_items) > 0:
+        gift_names = ", ".join([f"{fi.get('quantity')}x {fi.get('item_name')}" for fi in free_items])
+        gift_suffix = f" PROMO GIFTS: {gift_names}."
     
     if discrepancy_info and discrepancy_info.get("shortage", 0) > 0:
         notes_snippet = f" Reason: \"{discrepancy_info['notes'][:60]}\"" if discrepancy_info.get("notes") else ""
         msg = (
             f"Hisaab-Kitaab Alert: {staff_name} logged Inward of {qty_str} units of '{product_name}' "
             f"(Bill #{supplier_bill_no}). SHORTAGE FLAGGED: Supplier billed {discrepancy_info['billed_qty']}, "
-            f"received {qty_str} (-{discrepancy_info['shortage']} short).{notes_snippet} Please audit in Stock Tray."
+            f"received {qty_str} (-{discrepancy_info['shortage']} short).{notes_snippet}{gift_suffix} Please audit in Stock Tray."
         )
     elif auth_type == "EMERGENCY_OVERRIDE":
         decl_snippet = f" Note: \"{declaration[:60]}\"" if declaration else ""
         msg = (
             f"Hisaab-Kitaab Alert: {staff_name} logged Emergency Restock of {qty_str} units of "
-            f"'{product_name}'. Vendor: {supplier_name}, Bill: #{supplier_bill_no}.{decl_snippet}"
+            f"'{product_name}'. Vendor: {supplier_name}, Bill: #{supplier_bill_no}.{decl_snippet}{gift_suffix}"
         )
     elif auth_type == "SMS_OTP":
         msg = (
             f"Hisaab-Kitaab: {staff_name} logged Authorized Restock of {qty_str} units of "
-            f"'{product_name}' via OTP. Vendor: {supplier_name}, Bill: #{supplier_bill_no}."
+            f"'{product_name}' via OTP. Vendor: {supplier_name}, Bill: #{supplier_bill_no}.{gift_suffix}"
         )
     else:
         msg = (
             f"Hisaab-Kitaab: {staff_name} logged Stock Inward of {qty_str} units of "
-            f"'{product_name}'. Vendor: {supplier_name}, Bill: #{supplier_bill_no}."
+            f"'{product_name}'. Vendor: {supplier_name}, Bill: #{supplier_bill_no}.{gift_suffix}"
         )
 
     return dispatch_textbee_sms(
@@ -148,21 +153,23 @@ def notify_stockist_statement(
     staff_name: str,
     product_name: str,
     supplier_bill_no: str,
-    statement: str
+    statement: str,
+    is_appeal: bool = False
 ) -> dict:
-    """Instant SMS to owner when stockist submits an explanation statement for a shortage or discrepancy."""
+    """Instant SMS to owner when stockist submits an explanation statement or formal appeal for a shortage/discrepancy."""
     phone, _ = get_admin_phone_and_name()
     if not phone:
         return {"success": False, "message": "No admin phone configured"}
 
+    action_label = "formal APPEAL" if is_appeal else "discrepancy statement"
     msg = (
-        f"Hisaab-Kitaab Alert: Stockist {staff_name} submitted explanation for Bill #{supplier_bill_no} "
-        f"('{product_name}'): \"{statement[:60]}\". Please review and accept/reject in Stock Audit Tray."
+        f"Hisaab-Kitaab Alert: Stockist {staff_name} submitted {action_label} for Bill #{supplier_bill_no} "
+        f"('{product_name}'): \"{statement[:75]}\". Open Stock Audit Tray to review & resolve."
     )
     return dispatch_textbee_sms(
         recipient_phone=phone,
         message=msg,
-        log_type="STOCKIST_STATEMENT",
+        log_type="STOCKIST_DISPUTE_APPEAL" if is_appeal else "STOCKIST_STATEMENT",
         sent_by=staff_name
     )
 
