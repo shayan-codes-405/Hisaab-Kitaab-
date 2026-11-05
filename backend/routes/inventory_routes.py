@@ -426,9 +426,41 @@ def ensure_inward_timeline(inw: dict) -> list:
 
     return synthesized
 
+def sync_unclaimed_inwards():
+    """Ensure any inward with a recorded shortage has an active vendor debit claim in the database."""
+    now_utc = datetime.now(timezone.utc)
+    for inw in stock_inwards_col.find({"$or": [{"has_discrepancy": True}, {"discrepancy_qty": {"$gt": 0}}]}):
+        existing = vendor_claims_col.find_one({"inward_id": inw["_id"]})
+        if not existing:
+            prod = products_col.find_one({"_id": inw["product_id"]})
+            unit_cost = float(prod.get("purchase_price", 0.0)) if prod else 0.0
+            shortage_qty = float(inw.get("discrepancy_qty") or 0.0)
+            claim_amount = round(shortage_qty * unit_cost, 2)
+            claim_id = f"CLM-{inw.get('supplier_bill_no', 'BILL')}-{int(now_utc.timestamp())}"
+            vendor_claims_col.insert_one({
+                "claim_id": claim_id,
+                "supplier_name": inw.get("supplier_name", "Unknown Supplier"),
+                "supplier_bill_no": inw.get("supplier_bill_no", ""),
+                "inward_id": inw["_id"],
+                "product_id": inw["product_id"],
+                "product_name": inw.get("product_name", ""),
+                "sku": inw.get("sku", ""),
+                "shortage_qty": shortage_qty,
+                "unit_cost": unit_cost,
+                "claim_amount": claim_amount,
+                "status": "PENDING_SETTLEMENT",
+                "notes": inw.get("stockist_remarks") or inw.get("audit_notes") or "Supplier shortage on delivery",
+                "created_by": "system_sync",
+                "created_at": inw.get("created_at") or now_utc,
+                "settled_at": None,
+                "settlement_type": None,
+                "settlement_ref": ""
+            })
+
 @router.get("/inward/alerts")
 def get_inward_alerts(user: dict = Depends(require_staff_or_admin)):
     """Retrieve in-app alert badges and action items for inward disputes and audit tasks."""
+    sync_unclaimed_inwards()
     is_admin = user.get("role") == "admin"
     username = user.get("username")
 
@@ -1227,6 +1259,7 @@ def list_vendor_claims(
     user: dict = Depends(require_staff_or_admin)
 ):
     """List all vendor debit claims generated from inward delivery shortages."""
+    sync_unclaimed_inwards()
     query = {}
     if status_filter != "all":
         query["status"] = status_filter
