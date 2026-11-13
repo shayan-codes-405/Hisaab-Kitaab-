@@ -5,11 +5,63 @@ A high-performance business accounting, dynamic retail billing, and inventory le
 
 ---
 
+## 🌐 Live Cloud-Native Application
+
+Experience the live system running in a distributed cloud production environment:
+
+* **Live Web Application:** [https://hisaab-kitaab-eight-zeta.vercel.app/](https://hisaab-kitaab-eight-zeta.vercel.app/)
+* **Backend REST API Docs (Swagger UI):** [https://hisabkitab-backend.onrender.com/docs](https://hisabkitab-backend.onrender.com/docs)
+* **API Health Check Endpoint:** [https://hisabkitab-backend.onrender.com/api/health](https://hisabkitab-backend.onrender.com/api/health)
+
+> **Try it yourself:** Open the [Live Web Application](https://hisaab-kitaab-eight-zeta.vercel.app/) and click **Sign Up** to create your own business account. You can immediately create products with custom packaging, generate live GST invoices with dynamic PDF/print streaming, and see real-time ledger metrics update automatically.
+
+---
+
 ## 📌 What is HisabKitab?
 
 **HisabKitab** is an enterprise-grade billing and inventory ledger designed for businesses handling high-velocity counter sales and complex packaging hierarchies (e.g., stationery shops, book depots, hardware stores, wholesale distributors). 
 
 Unlike traditional billing applications that treat products as simple, single-piece items, HisabKitab handles real-world retail workflows where goods are purchased in bulk packages (Cartons, Boxes, Packs) but sold interchangeably as sealed cartons, fractional packs, or individual loose units.
+
+---
+
+## 🏗️ System Architecture & Cloud Topology
+
+HisabKitab is built on a decoupled, three-tier cloud-native architecture connecting the client edge, application microservices, and distributed database cluster:
+
+```mermaid
+graph TD
+    subgraph ClientTier ["Presentation Tier (Vercel Global Edge CDN)"]
+        UI["React 18 Single Page Application<br/>• Vite Build System<br/>• Pure CSS Ledger Tokens<br/>• Interactive Chart.js Visuals<br/>• Direct Iframe PDF Print Engine"]
+    end
+
+    subgraph AppTier ["Application Tier (Render Cloud Docker Container)"]
+        FastAPI["FastAPI REST Microservices (Python 3.11+)<br/>• Uvicorn High-Throughput ASGI Server<br/>• Pydantic Strict Schema Validation Layer<br/>• Salted PBKDF2-HMAC-SHA256 Auth & JWT"]
+        GSTEngine["Dynamic Indian GST Tax Engine<br/>• Intra-State (CGST+SGST) vs Inter-State (IGST)<br/>• Pro-rated Bill & Line Item Discounts"]
+        PkgEngine["Polymorphic Packaging Math<br/>• Fractional Unit Normalization<br/>• Atomic Base Unit Decrement"]
+        PDFEngine["ReportLab Vector PDF Streamer<br/>• Instant A4 Tax Invoice Generation"]
+        SMSDispatcher["TextBee Android GSM Gateway<br/>• Customer Receipts & 2FA Restock OTPs"]
+
+        FastAPI --> GSTEngine
+        FastAPI --> PkgEngine
+        FastAPI --> PDFEngine
+        FastAPI --> SMSDispatcher
+    end
+
+    subgraph DBTier ["Persistence Tier (MongoDB Atlas Cloud Cluster)"]
+        Atlas["MongoDB Atlas 3-Node Distributed Replica Set<br/>• WiredTiger Engine with Snappy Compression<br/>• In-Memory Caching & Auto-Failover<br/>• Native BSON Indexing & Multi-Stage Pipelines"]
+        Collections["10 Specialized Collections<br/>• products (Polymorphic Packaging)<br/>• invoices (Embedded Items & Snapshots)<br/>• stock_movements (Time-Series Ledger)<br/>• otp_verifications (10-Min TTL Index)"]
+        Atlas --- Collections
+    end
+
+    UI -->|HTTPS / REST API / JSON| FastAPI
+    FastAPI -->|PyMongo Driver / BSON over TLS/SSL| Atlas
+```
+
+### Architectural Tiers:
+1. **Presentation Tier (Vercel Global Edge CDN):** Serves the compiled React 18 Single Page Application with client-side SPA routing rewrites (`vercel.json`), ensuring sub-second global asset delivery with zero client-side 404s.
+2. **Application Tier (Render Cloud Docker Container):** Hosts containerized FastAPI microservices running in a lightweight Linux container (`python:3.11-slim`), dynamically binding to cloud environment ports and executing business calculations.
+3. **Persistence Tier (MongoDB Atlas Cloud Cluster):** Hosted on a managed Atlas multi-tenant cluster with encrypted TLS connections, compound BSON indexes, and automated replica set failover.
 
 ---
 
@@ -40,29 +92,8 @@ Unlike traditional billing applications that treat products as simple, single-pi
 
 ---
 
-## ⚙️ How It Works (Under the Hood)
+## ⚡ Core Database Operations & Benchmarks
 
-```
-[ Client Browser / POS ]
-         │
-         ▼ (HTTPS / REST)
-[ Vercel Global Edge CDN ] ──> React 18 SPA + Pure CSS Ledger Theme
-         │
-         ▼ (CORS / JSON)
-[ Render Cloud Container ] ──> FastAPI Async Microservices (Python)
-         │                     ├── GST Tax & Packaging Normalization Engine
-         │                     ├── ReportLab Vector PDF Streaming
-         │                     └── TextBee Android GSM SMS Dispatcher
-         │
-         ▼ (PyMongo / BSON SSL)
-[ MongoDB Atlas Cluster ]  ──> Distributed 3-Node Replica Set (WiredTiger)
-                               ├── products (Polymorphic Packaging)
-                               ├── invoices (Embedded Items & Snapshots)
-                               ├── stock_movements (Audit Ledger)
-                               └── otp_verifications (Native TTL Index)
-```
-
-### Core Database Architecture:
 * **The Embedded Document Pattern:** Invoices store their line items and tax splits as an internal BSON array. Zero `$lookup` / `JOIN` operations are needed to read or print an invoice.
 * **The Snapshot Pattern:** Immutable buyer and seller data are frozen into historical invoices at issuance.
 * **Atomic Concurrency Control:** Base units are deducted via `$inc` in-place, eliminating lock waits.
