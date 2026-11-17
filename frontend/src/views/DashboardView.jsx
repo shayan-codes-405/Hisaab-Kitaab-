@@ -602,7 +602,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
 
           {low_stock_alerts.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '30px 10px', color: '#166534', fontSize: '13px', backgroundColor: '#F0FDF4', borderRadius: '6px' }}>
-              ✓ All products are healthy and above minimum thresholds.
+              All products are healthy and above minimum thresholds.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

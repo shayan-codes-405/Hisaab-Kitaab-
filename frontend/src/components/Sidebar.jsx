@@ -19,7 +19,7 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed, mobi
     },
     {
       id: 'invoice',
-      label: 'Invoice & Billing',
+      label: 'Invoices',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -32,7 +32,7 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed, mobi
     },
     {
       id: 'inventory',
-      label: 'Inventory & Stock',
+      label: 'Inventory',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -48,16 +48,9 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed, mobi
 
   const navItems = allNavItems.filter((item) => {
     if (isAdmin) return true;
-    // Storekeeper is strictly restricted to Inventory & Stock (NO INVOICE/BILLING ACCESS)
     if (isStorekeeper) return item.id === 'inventory';
-    // Cashier is strictly restricted to their Sales Terminal (NO INVENTORY/DASHBOARD ACCESS)
     if (isCashier) return item.id === 'invoice';
     return false;
-  }).map((item) => {
-    if (isCashier && item.id === 'invoice') {
-      return { ...item, label: 'My Sales & Invoices' };
-    }
-    return item;
   });
 
   return (
@@ -266,7 +259,7 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed, mobi
                       backgroundColor: isAdmin ? '#4ade80' : isStorekeeper ? '#f59e0b' : '#38bdf8'
                     }}
                   />
-                  {isAdmin ? 'Store Owner (Admin)' : isStorekeeper ? 'Storekeeper (Stock)' : 'Cashier (Billing)'}
+                  {isAdmin ? 'Admin' : isStorekeeper ? 'Storekeeper' : 'Staff'}
                 </div>
               </div>
             )}

@@ -734,7 +734,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         window.URL.revokeObjectURL(blobUrl);
         document.body.removeChild(a);
       }, 500);
-      showToast(`✓ Invoice ${inv.invoice_number} PDF downloaded!`, 'success');
+      showToast(`Invoice ${inv.invoice_number} PDF downloaded successfully.`, 'success');
     } catch (err) {
       console.error('PDF download error:', err);
       window.open(`${API_BASE}/api/invoices/${inv.id}/pdf?download=true`, '_blank');
@@ -875,11 +875,11 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
 
       if (data.sms) {
         if (!data.sms.success) {
-          showToast(`⚠️ SMS warning: ${data.sms.message || 'Could not dispatch to phone'}`, 'warning', 6000);
+          showToast(`SMS dispatch alert: ${data.sms.message || 'Could not dispatch to phone'}`, 'warning', 6000);
         } else if (data.sms.mode === 'demo') {
           showToast(`[Demo Mode] SMS simulation recorded for ${customer.phone}`, 'info', 4000);
         } else {
-          showToast(`✓ Invoice SMS dispatched to ${customer.phone} via TextBee!`, 'success', 5000);
+          showToast(`Invoice SMS dispatched to ${customer.phone} successfully.`, 'success', 5000);
         }
       }
 
@@ -1064,24 +1064,24 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         {/* Terminal Header & Personal Metric */}
         <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--color-forest)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span>{isAdmin ? '🧾 Store Sales & Billing Ledger' : '🧾 My Sales Terminal & History'}</span>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-forest)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span>Invoices</span>
               {!isAdmin && (
-                <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: 'var(--color-forest-subtle)', color: 'var(--color-forest)', padding: '2px 8px', borderRadius: '12px' }}>
-                  Cashier: @{user?.username}
+                <span style={{ fontSize: '11px', fontWeight: 600, backgroundColor: 'var(--color-forest-subtle)', color: 'var(--color-forest)', padding: '2px 8px', borderRadius: '4px' }}>
+                  User: {user?.username}
                 </span>
               )}
             </h2>
             <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>
               {isAdmin
-                ? 'Store-wide sales audit trail with multi-cashier attribution and payment tracking'
-                : 'Terminal ledger: Exclusively showing sales invoices billed by you.'}
+                ? 'Store sales ledger with customer details, tax breakdown, and payment tracking.'
+                : 'Customer billing ledger and invoice history.'}
             </div>
           </div>
 
           {!isAdmin && invoices.length > 0 && (
-            <div style={{ fontSize: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '4px 12px', borderRadius: '6px', fontWeight: 600 }}>
-              My Total Sales: {invoices.length} Bills • ₹{invoices.reduce((acc, i) => acc + (i.final_payable_amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div style={{ fontSize: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '4px 10px', borderRadius: '4px', fontWeight: 600 }}>
+              {invoices.length} Invoices • Total: ₹{invoices.reduce((acc, i) => acc + (i.final_payable_amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           )}
         </div>
@@ -1091,7 +1091,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           <div style={{ display: 'flex', gap: '8px', flex: '1', minWidth: '260px' }}>
             <input
               type="text"
-              placeholder={isAdmin ? "Search invoice number, customer name, phone, or GSTIN..." : "Search my invoices by number or customer..."}
+              placeholder={isAdmin ? "Search invoice number, customer name, phone, or GSTIN..." : "Search invoices by number, customer, or phone..."}
               className="form-input"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1260,35 +1260,35 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                         className="btn btn-copper btn-xs"
                         title="Download Printable PDF"
                       >
-                        📄 PDF
+                        PDF
                       </button>
                       <button
                         onClick={() => handlePrint(inv)}
                         className="btn btn-secondary btn-xs"
                         title="Print Tax Invoice / Receipt"
                       >
-                        🖨️ Print
+                        Print
                       </button>
                       <button
                         onClick={() => openSMSModalFor(inv)}
                         className="btn btn-secondary btn-xs"
                         title="Send TextBee SMS"
                       >
-                        💬 SMS
+                        SMS
                       </button>
                       <button
                         onClick={() => handleOpenEdit(inv)}
                         className="btn btn-secondary btn-xs"
                         title="Edit Invoice"
                       >
-                        ✏️ Edit
+                        Edit
                       </button>
                       <button
                         onClick={() => setSelectedInvoice(inv)}
                         className="btn btn-ghost btn-xs"
                         title="View Details"
                       >
-                        👁️ View
+                        View
                       </button>
                       {isAdmin && (
                         <button
@@ -1595,9 +1595,9 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                           {it.package_unit && it.package_qty > 1 ? (
                             <div style={{ fontSize: '10px', color: 'var(--color-forest)', fontWeight: 600, marginTop: '2px' }}>
                               {it.unit === it.package_unit ? (
-                                <span>📦 = {(Number(it.quantity || 0) * Number(it.package_qty || 1)).toFixed(1).replace(/\.0$/, '')} {it.base_unit || 'Pcs'} stock deducted</span>
+                                <span>Equivalent: {(Number(it.quantity || 0) * Number(it.package_qty || 1)).toFixed(1).replace(/\.0$/, '')} {it.base_unit || 'Pcs'} stock deducted</span>
                               ) : (
-                                <span>📦 = {Number(it.quantity || 0)} loose {it.base_unit || 'Pcs'} stock deducted</span>
+                                <span>Equivalent: {Number(it.quantity || 0)} loose {it.base_unit || 'Pcs'} stock deducted</span>
                               )}
                             </div>
                           ) : null}
@@ -1838,7 +1838,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                           style={{ padding: '2px 8px', fontSize: '11px' }}
                           title="Print Live Invoice Draft / Receipt"
                         >
-                          🖨️ Print
+                          Print
                         </button>
                       </div>
                     </div>
@@ -1966,7 +1966,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 className="btn btn-secondary"
                 title="Print draft without saving"
               >
-                🖨️ Print Draft
+                Print Draft
               </button>
               <button
                 type="button"
@@ -1976,7 +1976,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 style={{ fontWeight: 700 }}
                 title="Save invoice, deduct stock, and print immediately"
               >
-                {isSubmitting ? 'Saving...' : '🖨️ Save & Print'}
+                {isSubmitting ? 'Saving...' : 'Save & Print'}
               </button>
               <button
                 type="submit"
@@ -1985,7 +1985,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 className="btn btn-primary"
                 style={{ padding: '8px 20px' }}
               >
-                {isSubmitting ? 'Saving...' : editingInvoice ? '✓ Update Invoice' : '✓ Save Invoice Only'}
+                {isSubmitting ? 'Saving...' : editingInvoice ? 'Update Invoice' : 'Save Invoice'}
               </button>
             </div>
           </div>
@@ -2008,27 +2008,27 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                   className="btn btn-copper btn-xs"
                   title="Download Printable PDF"
                 >
-                  📄 PDF
+                  PDF
                 </button>
                 <button
                   onClick={() => handlePrint(selectedInvoice)}
                   className="btn btn-secondary btn-xs"
                   title="Print Tax Invoice / Bill"
                 >
-                  🖨️ Print
+                  Print
                 </button>
                 <button
                   onClick={() => openSMSModalFor(selectedInvoice)}
                   className="btn btn-secondary btn-xs"
                 >
-                  💬 Send SMS
+                  Send SMS
                 </button>
                 {(isAdmin || selectedInvoice.created_by === user?.username) && (
                   <button
                     onClick={() => handleOpenEdit(selectedInvoice)}
                     className="btn btn-secondary btn-xs"
                   >
-                    ✏️ Edit
+                    Edit
                   </button>
                 )}
                 {isAdmin && (
@@ -2037,7 +2037,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                     className="btn btn-danger-subtle btn-xs"
                     style={{ fontWeight: 700 }}
                   >
-                    🗑️ Delete
+                    Delete
                   </button>
                 )}
                 <button onClick={() => setSelectedInvoice(null)} className="btn btn-ghost btn-xs">
