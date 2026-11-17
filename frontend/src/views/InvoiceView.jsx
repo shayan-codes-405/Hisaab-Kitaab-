@@ -346,7 +346,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (statusFilter !== 'all') params.append('payment_status', statusFilter);
-      if (staffFilter !== 'all') params.append('staff', staffFilter);
+      if (isAdmin && staffFilter !== 'all') params.append('staff', staffFilter);
       const res = await apiFetch(`/api/invoices?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -372,8 +372,9 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     }
   };
 
-  // Load Staff Members for Ledger Filter
+  // Load Staff Members for Ledger Filter (Admin-only)
   const loadStaffMembers = async () => {
+    if (!isAdmin) return;
     try {
       const res = await apiFetch('/api/auth/staff');
       if (res.ok) {
@@ -1060,12 +1061,37 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     <div>
       {/* Top Banner / Actions Bar */}
       <div className="ledger-card" style={{ padding: '16px 20px', marginBottom: '20px' }}>
+        {/* Terminal Header & Personal Metric */}
+        <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--color-forest)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span>{isAdmin ? '🧾 Store Sales & Billing Ledger' : '🧾 My Sales Terminal & History'}</span>
+              {!isAdmin && (
+                <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: 'var(--color-forest-subtle)', color: 'var(--color-forest)', padding: '2px 8px', borderRadius: '12px' }}>
+                  Cashier: @{user?.username}
+                </span>
+              )}
+            </h2>
+            <div style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px' }}>
+              {isAdmin
+                ? 'Store-wide sales audit trail with multi-cashier attribution and payment tracking'
+                : 'Terminal ledger: Exclusively showing sales invoices billed by you.'}
+            </div>
+          </div>
+
+          {!isAdmin && invoices.length > 0 && (
+            <div style={{ fontSize: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '4px 12px', borderRadius: '6px', fontWeight: 600 }}>
+              My Total Sales: {invoices.length} Bills • ₹{invoices.reduce((acc, i) => acc + (i.final_payable_amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          )}
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
           {/* Search box */}
-          <div style={{ display: 'flex', gap: '8px', flex: '1', minWidth: '280px' }}>
+          <div style={{ display: 'flex', gap: '8px', flex: '1', minWidth: '260px' }}>
             <input
               type="text"
-              placeholder="Search invoice number, customer name, phone, or GSTIN..."
+              placeholder={isAdmin ? "Search invoice number, customer name, phone, or GSTIN..." : "Search my invoices by number or customer..."}
               className="form-input"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1089,20 +1115,23 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
 
           {/* Status & Staff Filters & Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <select
-              className="form-select"
-              value={staffFilter}
-              onChange={(e) => setStaffFilter(e.target.value)}
-              style={{ width: 'auto' }}
-            >
-              <option value="all">Filter by Staff: All</option>
-              <option value="admin">Store Owner (Admin)</option>
-              {staffList.map((st) => (
-                <option key={st.id || st.username} value={st.username}>
-                  {st.full_name} (@{st.username})
-                </option>
-              ))}
-            </select>
+            {/* Staff Filter is strictly visible to Admin only */}
+            {isAdmin && (
+              <select
+                className="form-select"
+                value={staffFilter}
+                onChange={(e) => setStaffFilter(e.target.value)}
+                style={{ width: 'auto' }}
+              >
+                <option value="all">Filter by Staff: All</option>
+                <option value="admin">Store Owner (Admin)</option>
+                {staffList.map((st) => (
+                  <option key={st.id || st.username} value={st.username}>
+                    {st.full_name} (@{st.username})
+                  </option>
+                ))}
+              </select>
+            )}
 
             <select
               className="form-select"
@@ -1130,7 +1159,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
             <tr>
               <th>Invoice No</th>
               <th>Customer</th>
-              <th>Billed By</th>
+              {isAdmin && <th>Billed By</th>}
               <th>Issue Date & Time</th>
               <th>Supply State</th>
               <th style={{ textAlign: 'right' }}>Taxable Value</th>
@@ -1142,18 +1171,20 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           <tbody>
             {loading && invoices.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
+                <td colSpan={isAdmin ? 9 : 8} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
                   Loading invoices from database...
                 </td>
               </tr>
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--color-muted)' }}>
+                <td colSpan={isAdmin ? 9 : 8} style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--color-muted)' }}>
                   <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-forest)', marginBottom: '6px' }}>
-                    No Invoices Generated Yet
+                    {isAdmin ? 'No Invoices Generated Yet' : 'No Invoices Issued by You Yet'}
                   </div>
                   <div style={{ fontSize: '12.5px', marginBottom: '16px' }}>
-                    Click <b>"+ Create New Invoice"</b> above to issue your first GST bill with automatic tax calculation and stock deduction.
+                    {isAdmin
+                      ? 'Click "+ Create New Invoice" above to issue your first GST bill with automatic tax calculation and stock deduction.'
+                      : 'You have not billed any sales yet. Click "+ Create New Invoice" above to bill your first customer.'}
                   </div>
                   <button onClick={handleOpenCreate} className="btn btn-primary">
                     + Create First Invoice
@@ -1173,16 +1204,19 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       {inv.customer?.gstin ? <span>GSTIN: {inv.customer.gstin}</span> : <span>Unregistered</span>}
                     </div>
                   </td>
-                  <td>
-                    <div style={{ fontWeight: 600, color: 'var(--color-forest)', fontSize: '12.5px' }}>
-                      {inv.staff_name || (inv.created_by === 'admin' ? 'Shayan Akhtar' : inv.created_by || 'Admin')}
-                    </div>
-                    {inv.created_by && (
-                      <div style={{ fontSize: '11px', color: 'var(--color-muted)', fontFamily: 'var(--font-mono)' }}>
-                        @{inv.created_by}
+                  {/* Billed By column strictly rendered for Store Owner / Admin */}
+                  {isAdmin && (
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--color-forest)', fontSize: '12.5px' }}>
+                        {inv.staff_name || (inv.created_by === 'admin' ? (business?.business_name || 'Store Owner') : inv.created_by || 'Staff')}
                       </div>
-                    )}
-                  </td>
+                      {inv.created_by && (
+                        <div style={{ fontSize: '11px', color: 'var(--color-muted)', fontFamily: 'var(--font-mono)' }}>
+                          @{inv.created_by}
+                        </div>
+                      )}
+                    </td>
+                  )}
                   <td style={{ color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
                     <div style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{inv.invoice_date}</div>
                     <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>{inv.invoice_time || '—'}</div>
@@ -1989,19 +2023,23 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                 >
                   💬 Send SMS
                 </button>
-                <button
-                  onClick={() => handleOpenEdit(selectedInvoice)}
-                  className="btn btn-secondary btn-xs"
-                >
-                  ✏️ Edit
-                </button>
-                <button
-                  onClick={() => handleDeleteInvoice(selectedInvoice)}
-                  className="btn btn-danger-subtle btn-xs"
-                  style={{ fontWeight: 700 }}
-                >
-                  🗑️ Delete
-                </button>
+                {(isAdmin || selectedInvoice.created_by === user?.username) && (
+                  <button
+                    onClick={() => handleOpenEdit(selectedInvoice)}
+                    className="btn btn-secondary btn-xs"
+                  >
+                    ✏️ Edit
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleDeleteInvoice(selectedInvoice)}
+                    className="btn btn-danger-subtle btn-xs"
+                    style={{ fontWeight: 700 }}
+                  >
+                    🗑️ Delete
+                  </button>
+                )}
                 <button onClick={() => setSelectedInvoice(null)} className="btn btn-ghost btn-xs">
                   ✕
                 </button>
@@ -2022,8 +2060,16 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                     <b>Issue Date & Time:</b> {selectedInvoice.invoice_date} {selectedInvoice.invoice_time ? `• ${selectedInvoice.invoice_time}` : ''}
                   </div>
                   <div style={{ fontSize: '11.5px', color: 'var(--color-forest)', marginTop: '2px' }}>
-                    <b>Billed By:</b> {selectedInvoice.staff_name || (selectedInvoice.created_by === 'admin' ? 'Store Owner' : selectedInvoice.created_by || 'Staff')}
-                    {selectedInvoice.created_by && ` (@${selectedInvoice.created_by})`}
+                    {isAdmin ? (
+                      <>
+                        <b>Billed By:</b> {selectedInvoice.staff_name || (selectedInvoice.created_by === 'admin' ? (business?.business_name || 'Store Owner') : selectedInvoice.created_by || 'Staff')}
+                        {selectedInvoice.created_by && ` (@${selectedInvoice.created_by})`}
+                      </>
+                    ) : (
+                      <>
+                        <b>Billed By:</b> You (@{user?.username})
+                      </>
+                    )}
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--color-forest)', margin: '4px 0' }}>
                     ₹{selectedInvoice.final_payable_amount.toFixed(2)}

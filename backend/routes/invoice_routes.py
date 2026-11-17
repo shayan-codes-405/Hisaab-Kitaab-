@@ -13,7 +13,7 @@ from database import (
     serialize_doc,
     get_business_for_user
 )
-from auth import require_staff_or_admin, require_admin
+from auth import require_staff_or_admin, require_admin, require_billing_or_admin
 
 router = APIRouter(prefix="/api/invoices", tags=["GST Invoice Management"])
 
@@ -250,7 +250,7 @@ def generate_next_invoice_number(business: dict = None):
     return candidate
 
 @router.post("/calculate")
-def preview_calculation(data: CalculateInvoiceRequest, user: dict = Depends(require_staff_or_admin)):
+def preview_calculation(data: CalculateInvoiceRequest, user: dict = Depends(require_billing_or_admin)):
     """Dry-run calculation for live interactive invoice preview without strict validation hurdles."""
     settings = get_business_for_user(user)
     seller_state = settings.get("state", "Maharashtra")
@@ -323,39 +323,45 @@ def list_invoices(
     payment_status: Optional[str] = None,
     staff: Optional[str] = None,
     limit: int = 100,
-    user: dict = Depends(require_staff_or_admin)
+    user: dict = Depends(require_billing_or_admin)
 ):
     """Retrieve invoice ledger with customer, payment status, and staff member filtering."""
-    query = {}
+    filters = []
+
+    # Strict isolation: Cashiers (staff role) can ONLY view their own sales records!
+    if user.get("role") == "staff":
+        filters.append({"created_by": user.get("username", "")})
+    elif staff and staff != "all":
+        # Store Owner / Admin can filter by any staff member
+        staff_val = staff.strip()
+        filters.append({
+            "$or": [
+                {"created_by": staff_val},
+                {"staff_name": {"$regex": staff_val, "$options": "i"}}
+            ]
+        })
+
     if search:
         s = search.strip()
-        query["$or"] = [
-            {"invoice_number": {"$regex": s, "$options": "i"}},
-            {"customer.name": {"$regex": s, "$options": "i"}},
-            {"customer.phone": {"$regex": s, "$options": "i"}},
-            {"customer.gstin": {"$regex": s, "$options": "i"}}
-        ]
-        
+        filters.append({
+            "$or": [
+                {"invoice_number": {"$regex": s, "$options": "i"}},
+                {"customer.name": {"$regex": s, "$options": "i"}},
+                {"customer.phone": {"$regex": s, "$options": "i"}},
+                {"customer.gstin": {"$regex": s, "$options": "i"}}
+            ]
+        })
+
     if payment_status and payment_status != "all":
-        query["payment_status"] = payment_status
+        filters.append({"payment_status": payment_status})
 
-    if staff and staff != "all":
-        staff_val = staff.strip()
-        query["$and"] = query.get("$and", []) + [
-            {
-                "$or": [
-                    {"created_by": staff_val},
-                    {"staff_name": {"$regex": staff_val, "$options": "i"}}
-                ]
-            }
-        ]
-
+    query = {"$and": filters} if filters else {}
     cursor = invoices_col.find(query).sort("created_at", -1).limit(limit)
     invoices = list(cursor)
     return serialize_doc(invoices)
 
 @router.post("")
-def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staff_or_admin)):
+def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_billing_or_admin)):
     """
     Validate stock, calculate GST, deduct stock atomically, and save invoice.
     Prevents negative stock and ensures data snapshot consistency.
@@ -539,8 +545,8 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_staf
     }
 
 @router.get("/{invoice_id}")
-def get_invoice(invoice_id: str, user: dict = Depends(require_staff_or_admin)):
-    """Fetch complete invoice document."""
+def get_invoice(invoice_id: str, user: dict = Depends(require_billing_or_admin)):
+    """Fetch complete invoice document with cashier access isolation."""
     try:
         inv = invoices_col.find_one({"_id": ObjectId(invoice_id)})
     except Exception:
@@ -548,13 +554,21 @@ def get_invoice(invoice_id: str, user: dict = Depends(require_staff_or_admin)):
         
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice record not found.")
+
+    # Cashiers can only inspect their own billed invoices
+    if user.get("role") == "staff" and inv.get("created_by") != user.get("username"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cashiers are strictly restricted to inspecting their own sales invoices."
+        )
+
     return serialize_doc(inv)
 
 @router.put("/{invoice_id}")
 def update_invoice(
     invoice_id: str,
     data: CreateInvoiceRequest,
-    user: dict = Depends(require_staff_or_admin)
+    user: dict = Depends(require_billing_or_admin)
 ):
     """
     Edit an existing invoice, recalculate GST, adjust stock deltas, and persist updates.
@@ -566,6 +580,13 @@ def update_invoice(
 
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice record not found.")
+
+    # Cashiers cannot modify sales records created by another billing agent
+    if user.get("role") == "staff" and inv.get("created_by") != user.get("username"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cashiers cannot modify sales records created by another billing agent."
+        )
 
     settings = get_business_for_user(user)
     seller_state = settings.get("state", "Maharashtra")
@@ -707,7 +728,7 @@ def update_invoice(
 def update_payment_status(
     invoice_id: str,
     payload: UpdatePaymentStatusRequest,
-    user: dict = Depends(require_staff_or_admin)
+    user: dict = Depends(require_billing_or_admin)
 ):
     """Update payment status (Paid, Unpaid, Partially Paid) and balance."""
     try:
@@ -717,6 +738,13 @@ def update_payment_status(
         
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice record not found.")
+
+    # Cashiers cannot modify payment status of invoices created by another billing agent
+    if user.get("role") == "staff" and inv.get("created_by") != user.get("username"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cashiers cannot modify payment status of invoices created by another billing agent."
+        )
 
     final_amount = inv.get("final_payable_amount", 0.0)
     status_val = payload.payment_status

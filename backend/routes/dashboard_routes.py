@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import Dict, Any, Optional, List
 
 from database import invoices_col, products_col, users_col, serialize_doc, get_business_for_user
-from auth import require_staff_or_admin
+from auth import require_admin
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard & Analytics"])
 
@@ -14,7 +14,7 @@ def get_dashboard_metrics(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     staff: Optional[str] = Query(None),
-    user: dict = Depends(require_staff_or_admin)
+    user: dict = Depends(require_admin)
 ):
     """
     Calculate real-time business metrics dynamically from MongoDB records:

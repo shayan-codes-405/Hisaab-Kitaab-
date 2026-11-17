@@ -11,17 +11,32 @@ import { InventoryView } from './views/InventoryView';
 
 const MainApplication = () => {
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
-  const [activeTab, setActiveTab] = useState(isAdmin ? 'dashboard' : 'invoice');
+  const getDefaultTab = () => {
+    if (isAdmin) return 'dashboard';
+    if (user?.role === 'inventory_manager') return 'inventory';
+    return 'invoice';
+  };
+
+  const [activeTab, setActiveTab] = useState(getDefaultTab);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [viewInvoiceId, setViewInvoiceId] = useState(null);
   const [openCreateInvoice, setOpenCreateInvoice] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
 
-  // Enforce staff billing isolation: redirect non-admin billing cashiers to invoice view
+  // Strict role-based isolation:
+  // - Storekeepers (inventory_manager) ONLY have inventory view (NO invoice or dashboard access)
+  // - Cashiers (staff) ONLY have invoice view (their sales terminal)
   useEffect(() => {
-    if (!isLoading && isAuthenticated && !isAdmin && user?.role === 'staff') {
-      if (activeTab !== 'invoice') {
-        setActiveTab('invoice');
+    if (!isLoading && isAuthenticated && !isAdmin) {
+      if (user?.role === 'inventory_manager') {
+        if (activeTab !== 'inventory') {
+          setActiveTab('inventory');
+        }
+      } else if (user?.role === 'staff') {
+        if (activeTab !== 'invoice') {
+          setActiveTab('invoice');
+        }
       }
     }
   }, [isLoading, isAuthenticated, isAdmin, user, activeTab]);
@@ -85,12 +100,17 @@ const MainApplication = () => {
 
   return (
     <div className="app-layout">
-      {/* Collapsible Sidebar with strictly 3 primary items */}
+      {/* Collapsible Sidebar with strictly 3 primary items & Mobile Drawer support */}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setMobileSidebarOpen(false);
+        }}
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
@@ -100,6 +120,7 @@ const MainApplication = () => {
           onNewInvoice={handleNewInvoice}
           onNewProduct={handleNewProduct}
           onOpenAdminModal={() => setShowAdminModal(true)}
+          onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
         />
 
         <AdminManagementModal

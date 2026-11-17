@@ -126,6 +126,15 @@ def require_inventory_or_admin(current_user: dict = Depends(get_current_user)) -
         )
     return current_user
 
+def require_billing_or_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """FastAPI Dependency: Restrict invoice creation, editing, and listing strictly to Billing Staff or Admin. Inventory managers cannot perform billing."""
+    if current_user.get("role") not in ("admin", "staff"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Billing privileges required. Inventory managers / Storekeepers cannot access customer invoice functions."
+        )
+    return current_user
+
 def require_staff_or_admin(current_user: dict = Depends(get_current_user)) -> dict:
     """FastAPI Dependency: Permits Staff, Inventory Managers, and Admins."""
     if current_user.get("role") not in ("admin", "staff", "inventory_manager"):
