@@ -112,6 +112,23 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
     }
   };
 
+  // Derive top product across all counters for storytelling
+  const allProdsMap = {};
+  (staff_performance || []).forEach((st) => {
+    (st.top_products || []).forEach((tp) => {
+      if (!allProdsMap[tp.name]) allProdsMap[tp.name] = { name: tp.name, qty: 0, revenue: 0 };
+      allProdsMap[tp.name].qty += (tp.quantity || 0);
+      allProdsMap[tp.name].revenue += (tp.revenue || 0);
+    });
+  });
+  const sortedAllProds = Object.values(allProdsMap).sort((a, b) => b.revenue - a.revenue);
+  const bestSeller = sortedAllProds[0] || null;
+
+  // Active cashier counters
+  const activeCashiers = (staff_performance || []).filter(
+    (st) => st.role !== 'inventory_manager' && st.invoice_count > 0
+  );
+
   // Sales Trend Bar Chart Config
   const barChartData = {
     labels: charts?.monthly_sales?.labels || [],
@@ -319,6 +336,112 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
           </button>
         </div>
       )}
+
+      {/* Executive Storytelling Summary Card */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: '10px',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-forest)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Executive Business Story &amp; Digest
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+              Plain-English operational breakdown — clear and readable for business owners and clerks without financial jargon.
+            </div>
+          </div>
+          <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#0F766E', backgroundColor: '#CCFBF1', padding: '3px 9px', borderRadius: '12px' }}>
+            Live Digest • {getRangeTitle()}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+            gap: '12px'
+          }}
+        >
+          {/* Story 1: Revenue & Cash Flow */}
+          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: '#166534', backgroundColor: '#DCFCE7', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                Money Flow
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Revenue &amp; Collections</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5 }}>
+              Generated <b>₹{kpi.total_sales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b> across <b>{kpi.total_invoices}</b> bill{kpi.total_invoices === 1 ? '' : 's'}. Settled <b>₹{kpi.total_paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b> in payments, with <b>₹{kpi.total_unpaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b> in customer udhar/credit.
+            </div>
+          </div>
+
+          {/* Story 2: Stock Health */}
+          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 800,
+                color: (kpi.low_stock_count > 0 || kpi.out_of_stock_count > 0) ? '#9A3412' : '#166534',
+                backgroundColor: (kpi.low_stock_count > 0 || kpi.out_of_stock_count > 0) ? '#FFEDD5' : '#DCFCE7',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                textTransform: 'uppercase'
+              }}>
+                {(kpi.low_stock_count > 0 || kpi.out_of_stock_count > 0) ? 'Action Required' : 'Stock Healthy'}
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Inventory Shelf Health</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5 }}>
+              {(kpi.low_stock_count > 0 || kpi.out_of_stock_count > 0) ? (
+                <span><b>{kpi.low_stock_count + kpi.out_of_stock_count} item(s)</b> are running low or out of stock. Prioritize reordering <b>"{low_stock_alerts?.[0]?.name || 'low stock items'}"</b>.</span>
+              ) : (
+                <span>All <b>{kpi.total_products} items</b> in store are well-stocked. Zero items currently below safety threshold.</span>
+              )}
+            </div>
+          </div>
+
+          {/* Story 3: Best Seller */}
+          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: '#1E40AF', backgroundColor: '#DBEAFE', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                Star Item
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Top Demand Driver</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5 }}>
+              {bestSeller ? (
+                <span>Most popular item is <b>"{bestSeller.name}"</b>, contributing <b>₹{bestSeller.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b> to business revenue across <b>{bestSeller.qty}</b> units.</span>
+              ) : (
+                <span>Catalog is active with <b>{kpi.total_products} items</b>. Your fastest moving items will appear here as bills are created.</span>
+              )}
+            </div>
+          </div>
+
+          {/* Story 4: Counters */}
+          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: '#4C1D95', backgroundColor: '#EDE9FE', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                Counters
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Cashier Performance</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5 }}>
+              {activeCashiers.length > 0 ? (
+                <span>{activeCashiers.map((c) => `${c.name}: ${c.invoice_count} bills (₹${c.total_sales.toLocaleString('en-IN', { minimumFractionDigits: 0 })})`).join(' • ')}.</span>
+              ) : (
+                <span>No counter activity in this date range. Cashiers are ready at counters.</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* KPI Cards Grid (Dynamic to Selected Date Filter) */}
       <div

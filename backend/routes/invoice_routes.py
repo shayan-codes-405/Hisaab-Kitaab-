@@ -30,10 +30,16 @@ class InvoiceItemSchema(BaseModel):
     # Multi-unit & Packaging fields (e.g. 1 Box = 10 Pcs)
     conversion_factor: Optional[float] = 1.0
     base_unit: Optional[str] = "Pcs"
-    # Industry details snapshot
+    # Industry details snapshot & Universal Custom Specifications
     batch_number: Optional[str] = ""
     expiry_date: Optional[str] = ""
     part_number: Optional[str] = ""
+    industry_sector: Optional[str] = "general"
+    sector_fields: Optional[Dict[str, Any]] = None
+    custom_attributes: Optional[Dict[str, Any]] = None
+    industry_sector: Optional[str] = "general"
+    sector_fields: Optional[Dict[str, Any]] = None
+    custom_attributes: Optional[Dict[str, Any]] = None
 
 class CustomerSchema(BaseModel):
     name: str = Field(..., min_length=2)
@@ -80,6 +86,9 @@ class CalculateItemSchema(BaseModel):
     batch_number: Optional[str] = ""
     expiry_date: Optional[str] = ""
     part_number: Optional[str] = ""
+    industry_sector: Optional[str] = "general"
+    sector_fields: Optional[Dict[str, Any]] = None
+    custom_attributes: Optional[Dict[str, Any]] = None
 
 class CalculateCustomerSchema(BaseModel):
     name: Optional[str] = ""
@@ -144,7 +153,10 @@ def calculate_invoice_totals(items: List[InvoiceItemSchema], seller_state: str, 
             "base_unit": getattr(item, 'base_unit', item.unit or 'Pcs') or 'Pcs',
             "batch_number": item.batch_number or "",
             "expiry_date": item.expiry_date or "",
-            "part_number": item.part_number or ""
+            "part_number": item.part_number or "",
+            "industry_sector": getattr(item, 'industry_sector', 'general') or 'general',
+            "sector_fields": getattr(item, 'sector_fields', {}) or {},
+            "custom_attributes": getattr(item, 'custom_attributes', {}) or {}
         })
 
     # 2. Invoice-level discount calculation
@@ -282,7 +294,10 @@ def preview_calculation(data: CalculateInvoiceRequest, user: dict = Depends(requ
                 base_unit=item.base_unit or item.unit or "Pcs",
                 batch_number=item.batch_number or "",
                 expiry_date=item.expiry_date or "",
-                part_number=item.part_number or ""
+                part_number=item.part_number or "",
+                industry_sector=getattr(item, 'industry_sector', 'general') or 'general',
+                sector_fields=getattr(item, 'sector_fields', {}) or {},
+                custom_attributes=getattr(item, 'custom_attributes', {}) or {}
             ))
 
     if not valid_items:

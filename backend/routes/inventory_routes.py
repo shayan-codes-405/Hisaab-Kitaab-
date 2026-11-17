@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from database import products_col, stock_movements_col, stock_inwards_col, vendor_claims_col, promotional_gifts_col, users_col, serialize_doc
 from auth import require_staff_or_admin, require_admin, require_inventory_or_admin
@@ -30,7 +30,11 @@ class ProductCreate(BaseModel):
     package_unit: Optional[str] = ""
     package_qty: Optional[float] = 1.0
     package_selling_price: Optional[float] = 0.0
-    # Industry-specific fields
+    # Universal Multi-Sector & Custom Specifications
+    industry_sector: Optional[str] = "general"
+    sector_fields: Optional[Dict[str, Any]] = None
+    custom_attributes: Optional[Dict[str, Any]] = None
+    # Industry-specific fields (backward compatible)
     batch_number: Optional[str] = ""
     expiry_date: Optional[str] = ""
     part_number: Optional[str] = ""
@@ -56,6 +60,9 @@ class ProductUpdate(BaseModel):
     package_unit: Optional[str] = None
     package_qty: Optional[float] = None
     package_selling_price: Optional[float] = None
+    industry_sector: Optional[str] = None
+    sector_fields: Optional[Dict[str, Any]] = None
+    custom_attributes: Optional[Dict[str, Any]] = None
     batch_number: Optional[str] = None
     expiry_date: Optional[str] = None
     part_number: Optional[str] = None
@@ -196,9 +203,12 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
         "package_unit": data.package_unit.strip() if data.package_unit else "",
         "package_qty": float(data.package_qty or 1.0),
         "package_selling_price": float(data.package_selling_price or 0.0),
-        "batch_number": data.batch_number.strip() if data.batch_number else "",
-        "expiry_date": data.expiry_date.strip() if data.expiry_date else "",
-        "part_number": data.part_number.strip().upper() if data.part_number else "",
+        "industry_sector": data.industry_sector or "general",
+        "sector_fields": data.sector_fields or {},
+        "custom_attributes": data.custom_attributes or {},
+        "batch_number": (data.sector_fields or {}).get("batch_number") or (data.batch_number.strip() if data.batch_number else ""),
+        "expiry_date": (data.sector_fields or {}).get("expiry_date") or (data.expiry_date.strip() if data.expiry_date else ""),
+        "part_number": (data.sector_fields or {}).get("part_number") or (data.part_number.strip().upper() if data.part_number else ""),
         "description": data.description.strip() if data.description else "",
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc)
@@ -1570,6 +1580,18 @@ def update_product(product_id: str, data: ProductUpdate, user: dict = Depends(re
         update_fields["expiry_date"] = data.expiry_date.strip()
     if data.part_number is not None:
         update_fields["part_number"] = data.part_number.strip().upper()
+    if data.industry_sector is not None:
+        update_fields["industry_sector"] = data.industry_sector
+    if data.sector_fields is not None:
+        update_fields["sector_fields"] = data.sector_fields
+        if "batch_number" in data.sector_fields:
+            update_fields["batch_number"] = str(data.sector_fields["batch_number"]).strip()
+        if "expiry_date" in data.sector_fields:
+            update_fields["expiry_date"] = str(data.sector_fields["expiry_date"]).strip()
+        if "part_number" in data.sector_fields:
+            update_fields["part_number"] = str(data.sector_fields["part_number"]).strip().upper()
+    if data.custom_attributes is not None:
+        update_fields["custom_attributes"] = data.custom_attributes
     if data.description is not None:
         update_fields["description"] = data.description.strip()
 

@@ -38,13 +38,31 @@ export const printInvoiceViaIframe = (inv, seller) => {
 
   const itemsHtml = items.map((it, idx) => {
     const itTax = Number(it.tax_amount ?? ((it.cgst_amount || 0) + (it.sgst_amount || 0) + (it.igst_amount || 0)));
+    let specs = [];
+    if (it.sku) specs.push(`SKU: ${it.sku}`);
+    if (it.batch_number) specs.push(`Batch: ${it.batch_number}`);
+    if (it.expiry_date) specs.push(`Exp: ${it.expiry_date}`);
+    if (it.part_number) specs.push(`Part #: ${it.part_number}`);
+    if (it.sector_fields && typeof it.sector_fields === 'object') {
+      Object.entries(it.sector_fields).forEach(([k, v]) => {
+        if (v && !['batch_number', 'expiry_date', 'part_number'].includes(k)) {
+          specs.push(`${k.replace(/_/g, ' ')}: ${v}`);
+        }
+      });
+    }
+    if (it.custom_attributes && typeof it.custom_attributes === 'object') {
+      Object.entries(it.custom_attributes).forEach(([k, v]) => {
+        if (v) specs.push(`${k}: ${v}`);
+      });
+    }
+    const specsHtml = specs.length > 0 ? `<div style="font-size: 9px; color: #555; margin-top: 2px;">${specs.join(' • ')}</div>` : '';
+
     return `
       <tr>
         <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: center;">${idx + 1}</td>
         <td style="padding: 6px 8px; border: 1px solid #D8D0C2;">
           <div style="font-weight: 700; color: #111;">${it.name || 'Item'}</div>
-          ${it.sku ? `<div style="font-size: 10px; color: #666;">SKU: ${it.sku}</div>` : ''}
-          ${it.batch_number ? `<div style="font-size: 10px; color: #666;">Batch: ${it.batch_number}</div>` : ''}
+          ${specsHtml}
         </td>
         <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: right;">${it.quantity} ${it.unit || 'Pcs'}</td>
         <td style="padding: 6px 8px; border: 1px solid #D8D0C2; text-align: right;">₹${Number(it.unit_price || 0).toFixed(2)}</td>
@@ -458,9 +476,12 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           gst_rate: it.gst_rate === '' ? 0 : parseFloat(it.gst_rate) || 0,
           discount_type: it.discount_type || 'percentage',
           discount_value: it.discount_value === '' ? 0 : parseFloat(it.discount_value) || 0,
-          batch_number: it.batch_number || '',
-          expiry_date: it.expiry_date || '',
-          part_number: it.part_number || ''
+          batch_number: it.batch_number || it.sector_fields?.batch_number || '',
+          expiry_date: it.expiry_date || it.sector_fields?.expiry_date || '',
+          part_number: it.part_number || it.sector_fields?.part_number || '',
+          industry_sector: it.industry_sector || 'general',
+          sector_fields: it.sector_fields || {},
+          custom_attributes: it.custom_attributes || {}
         }))
         .filter((it) => it.quantity > 0);
 
@@ -535,9 +556,12 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         package_qty: pkgQty,
         package_selling_price: found.package_selling_price || (found.selling_price * pkgQty),
         gst_rate: found.gst_rate ?? 18,
-        batch_number: found.batch_number || '',
-        expiry_date: found.expiry_date || '',
-        part_number: found.part_number || ''
+        batch_number: found.batch_number || found.sector_fields?.batch_number || '',
+        expiry_date: found.expiry_date || found.sector_fields?.expiry_date || '',
+        part_number: found.part_number || found.sector_fields?.part_number || '',
+        industry_sector: found.industry_sector || 'general',
+        sector_fields: found.sector_fields || {},
+        custom_attributes: found.custom_attributes || {}
       };
     } else {
       copy[idx] = {
@@ -552,7 +576,10 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         base_selling_price: 0,
         package_unit: '',
         package_qty: 1,
-        package_selling_price: 0
+        package_selling_price: 0,
+        industry_sector: 'general',
+        sector_fields: {},
+        custom_attributes: {}
       };
     }
     setItems(copy);
@@ -655,7 +682,10 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         discount_value: 0,
         batch_number: '',
         expiry_date: '',
-        part_number: ''
+        part_number: '',
+        industry_sector: 'general',
+        sector_fields: {},
+        custom_attributes: {}
       }
     ]);
     setShowCreatorModal(true);
@@ -699,7 +729,10 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         discount_value: it.discount_value || 0,
         batch_number: it.batch_number || '',
         expiry_date: it.expiry_date || '',
-        part_number: it.part_number || ''
+        part_number: it.part_number || '',
+        industry_sector: it.industry_sector || 'general',
+        sector_fields: it.sector_fields || {},
+        custom_attributes: it.custom_attributes || {}
       }))
     );
     setSelectedInvoice(null);
@@ -817,9 +850,12 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         gst_rate: it.gst_rate === '' ? 0 : parseFloat(it.gst_rate) || 0,
         discount_type: it.discount_type || 'percentage',
         discount_value: it.discount_value === '' ? 0 : parseFloat(it.discount_value) || 0,
-        batch_number: it.batch_number || '',
-        expiry_date: it.expiry_date || '',
-        part_number: it.part_number || ''
+        batch_number: it.batch_number || it.sector_fields?.batch_number || '',
+        expiry_date: it.expiry_date || it.sector_fields?.expiry_date || '',
+        part_number: it.part_number || it.sector_fields?.part_number || '',
+        industry_sector: it.industry_sector || 'general',
+        sector_fields: it.sector_fields || {},
+        custom_attributes: it.custom_attributes || {}
       }))
       .filter((it) => it.quantity > 0);
 
@@ -1354,8 +1390,24 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
               <form id="invoice-create-form" onSubmit={handleCreateInvoice}>
                 {/* 1. Customer Card */}
                 <div style={{ backgroundColor: '#ffffff', border: '1px solid var(--color-stone)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-forest)', textTransform: 'uppercase', marginBottom: '12px' }}>
-                    1. Customer Information
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-forest)', textTransform: 'uppercase' }}>
+                      1. Customer Information
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCustomer({
+                        name: 'Cash / Walk-in Customer',
+                        phone: '9876543210',
+                        gstin: '',
+                        billing_address: 'Local Counter Sale',
+                        state: business?.state || 'Bihar'
+                      })}
+                      className="btn btn-secondary btn-xs"
+                      style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', fontWeight: 600 }}
+                    >
+                      + Quick Fill Walk-in (Cash)
+                    </button>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '12px' }}>
@@ -1715,6 +1767,28 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                           />
                         </div>
                       </div>
+
+                      {/* Sector & Specifications Summary Pill */}
+                      {((it.industry_sector && it.industry_sector !== 'general') || (it.custom_attributes && Object.keys(it.custom_attributes).length > 0) || it.batch_number || it.expiry_date || it.part_number) && (
+                        <div style={{ marginTop: '8px', fontSize: '11px', color: '#475569', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                          {it.industry_sector && it.industry_sector !== 'general' && (
+                            <span style={{ backgroundColor: '#E0E7FF', color: '#3730A3', padding: '1px 6px', borderRadius: '3px', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase' }}>
+                              {it.industry_sector}
+                            </span>
+                          )}
+                          {it.batch_number && <span style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', padding: '1px 5px', borderRadius: '3px' }}>Batch: {it.batch_number}</span>}
+                          {it.expiry_date && <span style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', padding: '1px 5px', borderRadius: '3px' }}>Exp: {it.expiry_date}</span>}
+                          {it.part_number && <span style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', padding: '1px 5px', borderRadius: '3px' }}>Part: {it.part_number}</span>}
+                          {it.sector_fields?.imei_serial && <span style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', padding: '1px 5px', borderRadius: '3px' }}>IMEI: {it.sector_fields.imei_serial}</span>}
+                          {it.sector_fields?.wattage && <span style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', padding: '1px 5px', borderRadius: '3px' }}>{it.sector_fields.wattage}</span>}
+                          {it.sector_fields?.size && <span style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', padding: '1px 5px', borderRadius: '3px' }}>Size: {it.sector_fields.size}</span>}
+                          {it.custom_attributes && Object.entries(it.custom_attributes).map(([k, v]) => (
+                            <span key={k} style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', padding: '1px 5px', borderRadius: '3px' }}>
+                              {k}: {String(v)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

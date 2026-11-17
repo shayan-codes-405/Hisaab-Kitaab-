@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
+export const SECTORS = [
+  { id: 'general', name: 'General Retail', tag: 'General', placeholderSku: 'GEN-001' },
+  { id: 'pharmacy', name: 'Pharmacy & Healthcare', tag: 'Pharma', placeholderSku: 'MED-001' },
+  { id: 'electronics', name: 'Mobile & Electronics', tag: 'Electronics', placeholderSku: 'ELEC-001' },
+  { id: 'electricals', name: 'Electricals & Lighting', tag: 'Electrical', placeholderSku: 'LGT-001' },
+  { id: 'automobile', name: 'Automobile & Spares', tag: 'Auto Parts', placeholderSku: 'AUTO-001' },
+  { id: 'garments', name: 'Garments & Fashion', tag: 'Garments', placeholderSku: 'CLOTH-001' },
+  { id: 'stationery', name: 'Books & Stationery', tag: 'Stationery', placeholderSku: 'STAT-001' },
+  { id: 'cafe', name: 'Cafe & Fast Food', tag: 'Food & Dining', placeholderSku: 'CAFE-001' }
+];
+
 export const InventoryView = () => {
   const { apiFetch, isAdmin, user, dataVersion, refreshData } = useAuth();
   const { showToast } = useToast();
@@ -9,6 +20,11 @@ export const InventoryView = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Sector and Custom Fields State
+  const [selectedSector, setSelectedSector] = useState('general');
+  const [sectorFields, setSectorFields] = useState({});
+  const [customSpecs, setCustomSpecs] = useState([]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -193,6 +209,9 @@ export const InventoryView = () => {
   const openAddModal = () => {
     setEditingProduct(null);
     setFormData(initialForm);
+    setSelectedSector('general');
+    setSectorFields({});
+    setCustomSpecs([]);
     setPackagingMode('single');
     setPkgUnit('Box');
     setLooseUnit('Pcs');
@@ -212,6 +231,23 @@ export const InventoryView = () => {
 
   const openEditModal = (p) => {
     setEditingProduct(p);
+    setSelectedSector(p.industry_sector || 'general');
+    const sf = p.sector_fields ? { ...p.sector_fields } : {};
+    if (!sf.batch_number && p.batch_number) sf.batch_number = p.batch_number;
+    if (!sf.expiry_date && p.expiry_date) sf.expiry_date = p.expiry_date;
+    if (!sf.part_number && p.part_number) sf.part_number = p.part_number;
+    setSectorFields(sf);
+
+    if (p.custom_attributes && typeof p.custom_attributes === 'object') {
+      const specs = Object.entries(p.custom_attributes).map(([key, value]) => ({
+        key,
+        value: typeof value === 'object' ? JSON.stringify(value) : String(value)
+      }));
+      setCustomSpecs(specs);
+    } else {
+      setCustomSpecs([]);
+    }
+
     const isMulti = !!(p.package_unit && p.package_qty > 1);
     setPackagingMode(isMulti ? 'multi' : 'single');
     setPkgUnit(p.package_unit || 'Box');
@@ -282,6 +318,17 @@ export const InventoryView = () => {
         ? (formData.package_selling_price ? parseFloat(formData.package_selling_price) : (parseFloat(formData.selling_price) || 0) * actualPkgQty)
         : 0.0;
 
+      const customAttrsObj = {};
+      customSpecs.forEach((spec) => {
+        const k = (spec.key || '').trim();
+        const v = (spec.value || '').trim();
+        if (k) customAttrsObj[k] = v;
+      });
+
+      const batchNum = sectorFields.batch_number || formData.batch_number || '';
+      const expDate = sectorFields.expiry_date || formData.expiry_date || '';
+      const partNum = sectorFields.part_number || formData.part_number || '';
+
       const payload = {
         ...formData,
         unit: actualUnit,
@@ -292,7 +339,13 @@ export const InventoryView = () => {
         gst_rate: parseFloat(formData.gst_rate) || 0,
         package_unit: actualPkgUnit,
         package_qty: actualPkgQty,
-        package_selling_price: actualPkgPrice
+        package_selling_price: actualPkgPrice,
+        industry_sector: selectedSector,
+        sector_fields: sectorFields,
+        custom_attributes: customAttrsObj,
+        batch_number: batchNum,
+        expiry_date: expDate,
+        part_number: partNum
       };
 
       if (!editingProduct) {
@@ -1132,11 +1185,46 @@ export const InventoryView = () => {
                       {p.sku}
                     </td>
                     <td>
-                      <div style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{p.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
-                        {p.part_number && <span>Part #: {p.part_number} • </span>}
-                        {p.batch_number && <span>Batch: {p.batch_number} • </span>}
-                        {p.expiry_date && <span>Exp: {p.expiry_date}</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{p.name}</span>
+                        {p.industry_sector && p.industry_sector !== 'general' && (
+                          <span style={{
+                            fontSize: '9.5px',
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            backgroundColor: '#E0E7FF',
+                            color: '#3730A3',
+                            textTransform: 'uppercase'
+                          }}>
+                            {SECTORS.find((s) => s.id === p.industry_sector)?.tag || p.industry_sector}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {(p.part_number || p.sector_fields?.part_number) && (
+                          <span>Part #: {p.part_number || p.sector_fields?.part_number} • </span>
+                        )}
+                        {(p.batch_number || p.sector_fields?.batch_number) && (
+                          <span>Batch: {p.batch_number || p.sector_fields?.batch_number} • </span>
+                        )}
+                        {(p.expiry_date || p.sector_fields?.expiry_date) && (
+                          <span>Exp: {p.expiry_date || p.sector_fields?.expiry_date} • </span>
+                        )}
+                        {p.sector_fields?.imei_serial && (
+                          <span>IMEI: {p.sector_fields.imei_serial} • </span>
+                        )}
+                        {p.sector_fields?.wattage && (
+                          <span>{p.sector_fields.wattage} • </span>
+                        )}
+                        {p.sector_fields?.size && (
+                          <span>Size: {p.sector_fields.size} • </span>
+                        )}
+                        {p.custom_attributes && Object.entries(p.custom_attributes).slice(0, 2).map(([k, v]) => (
+                          <span key={k} style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0', padding: '0 4px', borderRadius: '3px', fontSize: '10px' }}>
+                            {k}: {String(v)}
+                          </span>
+                        ))}
                       </div>
                     </td>
                     <td>
@@ -1537,43 +1625,524 @@ export const InventoryView = () => {
                   )}
                 </div>
 
-                {/* Industry Specific Fields (Pharmacy & Automotive) */}
-                <div style={{ padding: '10px 12px', backgroundColor: 'var(--color-stone-light)', borderRadius: '6px', marginTop: '6px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-forest)', marginBottom: '6px' }}>
-                    Industry Specific Fields (Optional - Pharma & Automobile)
+                {/* Multi-Industry Sector & Custom Fields Section */}
+                <div style={{ padding: '14px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', marginTop: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        Industry Sector &amp; Specifications
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748B' }}>
+                        Adapts form fields &amp; invoices for your exact trade (Pharma, Electronics, Lights, Auto, Garments, etc.)
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#2563EB', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '12px' }}>
+                      Universal Trade Support
+                    </span>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Batch No (Pharma)</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="e.g. BATCH-992"
-                        value={formData.batch_number}
-                        onChange={(e) => setFormData({ ...formData, batch_number: e.target.value })}
-                      />
+
+                  {/* Sector Pills Selector */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                    {SECTORS.map((sec) => {
+                      const isSel = selectedSector === sec.id;
+                      return (
+                        <button
+                          key={sec.id}
+                          type="button"
+                          onClick={() => setSelectedSector(sec.id)}
+                          style={{
+                            padding: '5px 11px',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: isSel ? 700 : 500,
+                            border: isSel ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+                            backgroundColor: isSel ? '#EFF6FF' : '#FFFFFF',
+                            color: isSel ? '#1D4ED8' : '#334155',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {isSel && (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                          )}
+                          <span>{sec.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Conditional Sector Specific Input Fields */}
+                  <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>
+                    {selectedSector === 'pharmacy' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Batch Number</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. BATCH-992"
+                            value={sectorFields.batch_number || formData.batch_number || ''}
+                            onChange={(e) => {
+                              setSectorFields({ ...sectorFields, batch_number: e.target.value });
+                              setFormData({ ...formData, batch_number: e.target.value });
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Expiry Date</label>
+                          <input
+                            type="date"
+                            className="form-input"
+                            value={sectorFields.expiry_date || formData.expiry_date || ''}
+                            onChange={(e) => {
+                              setSectorFields({ ...sectorFields, expiry_date: e.target.value });
+                              setFormData({ ...formData, expiry_date: e.target.value });
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Formulation / Composition</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Paracetamol 650mg"
+                            value={sectorFields.drug_composition || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, drug_composition: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Drug Schedule</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Schedule H / OTC"
+                            value={sectorFields.drug_schedule || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, drug_schedule: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedSector === 'electronics' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>IMEI / Serial Number</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 864502049102481"
+                            value={sectorFields.imei_serial || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, imei_serial: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Model / Variant</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Galaxy M34 5G"
+                            value={sectorFields.model_number || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, model_number: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Specs (RAM / Storage)</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 8GB RAM / 128GB"
+                            value={sectorFields.device_specs || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, device_specs: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Warranty Period</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 1 Year Brand Warranty"
+                            value={sectorFields.warranty_period || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, warranty_period: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedSector === 'electricals' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Power Wattage</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 9W / 12W / 18W"
+                            value={sectorFields.wattage || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, wattage: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Light Color / Temp</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 6500K Cool Day Light"
+                            value={sectorFields.color_temp || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, color_temp: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Base / Holder Fitting</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. B22 Pin / E27 Screw"
+                            value={sectorFields.fitting_type || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, fitting_type: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Operating Voltage</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 220V - 240V AC"
+                            value={sectorFields.voltage || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, voltage: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedSector === 'automobile' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>OEM Part Number</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. OEM-48201 / 22100-M76A"
+                            value={sectorFields.part_number || formData.part_number || ''}
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setSectorFields({ ...sectorFields, part_number: val });
+                              setFormData({ ...formData, part_number: val });
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Vehicle Compatibility</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Swift 2018+ / Splendor"
+                            value={sectorFields.vehicle_model || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, vehicle_model: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Fitment Position</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Front Right / Brake Pad"
+                            value={sectorFields.fitment_position || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, fitment_position: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Component Brand</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Bosch / Minda / Lumax"
+                            value={sectorFields.auto_brand || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, auto_brand: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedSector === 'garments' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Size / Fit</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. M / L / XL / 32 / Free Size"
+                            value={sectorFields.size || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, size: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Color / Shade</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Navy Blue / Olive Green"
+                            value={sectorFields.color || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, color: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Fabric Material</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 100% Combed Cotton / Denim"
+                            value={sectorFields.fabric || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, fabric: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Gender / Category</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Men / Women / Kids"
+                            value={sectorFields.gender_cat || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, gender_cat: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedSector === 'stationery' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Paper GSM / Thickness</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 70 GSM / 80 GSM Maplitho"
+                            value={sectorFields.gsm_grade || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, gsm_grade: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Ruling / Line Type</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Single Line / Unruled / Square"
+                            value={sectorFields.ruling || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, ruling: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Binding / Pages</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Spiral / Hard Bound (172 Pgs)"
+                            value={sectorFields.binding_pages || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, binding_pages: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Brand / Publisher</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Classmate / Navneet / Reynolds"
+                            value={sectorFields.brand || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, brand: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedSector === 'cafe' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Dietary Type</label>
+                          <select
+                            className="form-select"
+                            value={sectorFields.dietary || 'Veg'}
+                            onChange={(e) => setSectorFields({ ...sectorFields, dietary: e.target.value })}
+                          >
+                            <option value="Veg">Pure Vegetarian</option>
+                            <option value="Non-Veg">Non-Vegetarian</option>
+                            <option value="Egg">Egg</option>
+                            <option value="Vegan">Vegan</option>
+                          </select>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Portion / Serving</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Regular / Half / Full / 250ml"
+                            value={sectorFields.portion_size || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, portion_size: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Prep Time</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 10-15 Mins"
+                            value={sectorFields.prep_time || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, prep_time: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Allergen / Spiciness</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Contains Dairy / Medium Spicy"
+                            value={sectorFields.allergens || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, allergens: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedSector === 'general' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Barcode / UPC / EAN</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. 8901030855214"
+                            value={sectorFields.barcode || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, barcode: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Brand / Manufacturer</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. Tata / ITC / Local Brand"
+                            value={sectorFields.brand || ''}
+                            onChange={(e) => setSectorFields({ ...sectorFields, brand: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Batch / Lot (Optional)</label>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g. LOT-401"
+                            value={sectorFields.batch_number || formData.batch_number || ''}
+                            onChange={(e) => {
+                              setSectorFields({ ...sectorFields, batch_number: e.target.value });
+                              setFormData({ ...formData, batch_number: e.target.value });
+                            }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Expiry (Optional)</label>
+                          <input
+                            type="date"
+                            className="form-input"
+                            value={sectorFields.expiry_date || formData.expiry_date || ''}
+                            onChange={(e) => {
+                              setSectorFields({ ...sectorFields, expiry_date: e.target.value });
+                              setFormData({ ...formData, expiry_date: e.target.value });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Universal Custom Specifications Builder */}
+                  <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#334155' }}>
+                        Custom Details &amp; Specifications (Optional)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCustomSpecs([...customSpecs, { key: '', value: '' }])}
+                        className="btn btn-secondary btn-xs"
+                        style={{ fontSize: '11px', padding: '3px 8px' }}
+                      >
+                        + Add Custom Detail
+                      </button>
                     </div>
 
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Expiry Date (Pharma)</label>
-                      <input
-                        type="date"
-                        className="form-input"
-                        value={formData.expiry_date}
-                        onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
-                      />
+                    {/* Quick suggestion tags */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '10.5px', color: '#64748B', alignSelf: 'center', marginRight: '4px' }}>Suggestions:</span>
+                      {['Gold Purity', 'Box Coverage', 'Color', 'Material', 'Warranty', 'Country of Origin'].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            if (!customSpecs.some(s => s.key === tag)) {
+                              setCustomSpecs([...customSpecs, { key: tag, value: '' }]);
+                            }
+                          }}
+                          style={{
+                            fontSize: '10.5px',
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            border: '1px dashed #CBD5E1',
+                            background: '#F1F5F9',
+                            color: '#475569',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          + {tag}
+                        </button>
+                      ))}
                     </div>
 
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Part Number (Auto/Hardware)</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="e.g. OEM-48201"
-                        value={formData.part_number}
-                        onChange={(e) => setFormData({ ...formData, part_number: e.target.value.toUpperCase() })}
-                      />
-                    </div>
+                    {customSpecs.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {customSpecs.map((spec, sIdx) => (
+                          <div key={sIdx} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.5fr auto', gap: '6px', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Detail Name (e.g. Purity)"
+                              value={spec.key}
+                              onChange={(e) => {
+                                const copy = [...customSpecs];
+                                copy[sIdx].key = e.target.value;
+                                setCustomSpecs(copy);
+                              }}
+                              style={{ fontSize: '11.5px', padding: '5px 8px' }}
+                            />
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Value (e.g. 22K 916 BIS Hallmarked)"
+                              value={spec.value}
+                              onChange={(e) => {
+                                const copy = [...customSpecs];
+                                copy[sIdx].value = e.target.value;
+                                setCustomSpecs(copy);
+                              }}
+                              style={{ fontSize: '11.5px', padding: '5px 8px' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const copy = customSpecs.filter((_, i) => i !== sIdx);
+                                setCustomSpecs(copy);
+                              }}
+                              className="btn btn-ghost btn-xs"
+                              style={{ color: '#DC2626', padding: '4px 8px' }}
+                              title="Remove specification"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
