@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, status
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
-from database import products_col, stock_movements_col, stock_inwards_col, vendor_claims_col, promotional_gifts_col, users_col, serialize_doc
+from database import products_col, stock_movements_col, stock_inwards_col, vendor_claims_col, promotional_gifts_col, users_col, serialize_doc, get_business_for_user
 from auth import require_staff_or_admin, require_admin, require_inventory_or_admin
 from services.stock_alert_service import (
     notify_stock_inward,
@@ -128,24 +128,41 @@ def list_products(
     search: Optional[str] = None,
     category: Optional[str] = None,
     status_filter: Optional[str] = Query("all", pattern="^(all|in_stock|low_stock|out_of_stock)$"),
+    store_id: Optional[str] = None,
     user: dict = Depends(require_staff_or_admin)
 ):
-    """List and filter products with search and stock status indicators."""
-    query = {}
+    """List and filter products with search and stock status indicators, scoped to active store."""
+    if user.get("role") != "admin":
+        b_id = str(user.get("business_id", ""))
+    else:
+        b_id = store_id or str(user.get("business_id", ""))
+    query_parts = []
+    
+    if b_id and b_id != "all":
+        # Only fallback to unassigned legacy items for the primary enterprise business
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == b_id and user_biz.get("enterprise_id") == b_id)
+        if is_primary:
+            query_parts.append({"$or": [{"business_id": b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]})
+        else:
+            query_parts.append({"business_id": b_id})
     
     if search:
         s = search.strip()
-        query["$or"] = [
-            {"name": {"$regex": s, "$options": "i"}},
-            {"sku": {"$regex": s, "$options": "i"}},
-            {"part_number": {"$regex": s, "$options": "i"}},
-            {"batch_number": {"$regex": s, "$options": "i"}},
-            {"category": {"$regex": s, "$options": "i"}}
-        ]
+        query_parts.append({
+            "$or": [
+                {"name": {"$regex": s, "$options": "i"}},
+                {"sku": {"$regex": s, "$options": "i"}},
+                {"part_number": {"$regex": s, "$options": "i"}},
+                {"batch_number": {"$regex": s, "$options": "i"}},
+                {"category": {"$regex": s, "$options": "i"}}
+            ]
+        })
         
     if category and category != "All":
-        query["category"] = category
+        query_parts.append({"category": category})
 
+    query = {"$and": query_parts} if query_parts else {}
     cursor = products_col.find(query).sort("name", 1)
     products = list(cursor)
     
@@ -190,7 +207,12 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
             detail=f"A product with SKU '{clean_sku}' already exists."
         )
 
+    biz = get_business_for_user(user)
+    b_id = str(user.get("business_id", "") or biz.get("_id", ""))
+    biz_sector = biz.get("business_category", "general")
+
     product_doc = {
+        "business_id": b_id,
         "name": data.name.strip(),
         "sku": clean_sku,
         "category": data.category.strip() or "General",
@@ -203,7 +225,7 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
         "package_unit": data.package_unit.strip() if data.package_unit else "",
         "package_qty": float(data.package_qty or 1.0),
         "package_selling_price": float(data.package_selling_price or 0.0),
-        "industry_sector": data.industry_sector or "general",
+        "industry_sector": data.industry_sector if (data.industry_sector and data.industry_sector != "general") else biz_sector,
         "sector_fields": data.sector_fields or {},
         "custom_attributes": data.custom_attributes or {},
         "batch_number": (data.sector_fields or {}).get("batch_number") or (data.batch_number.strip() if data.batch_number else ""),

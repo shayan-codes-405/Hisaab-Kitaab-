@@ -4,6 +4,17 @@ import { useToast } from '../context/ToastContext';
 import { STATES_LIST, UT_LIST } from '../constants/states';
 import { PasswordInput } from '../components/PasswordInput';
 
+export const BUSINESS_SECTORS = [
+  { id: 'stationery', name: 'Books & Stationery', desc: 'Notebooks, pens, paper reams, office stationery' },
+  { id: 'pharmacy', name: 'Pharmacy & Healthcare', desc: 'Medicines, batches, formulations, syrups' },
+  { id: 'electronics', name: 'Mobile & Electronics', desc: 'Smartphones, serial/IMEI, accessories, warranty' },
+  { id: 'electricals', name: 'Electricals & Lighting', desc: 'LED lights, wattage, switches, wiring' },
+  { id: 'automobile', name: 'Automobile & Spares', desc: 'OEM parts, bike/car compatibility, hardware' },
+  { id: 'garments', name: 'Garments & Fashion', desc: 'Clothing, sizes, fabrics, apparel' },
+  { id: 'cafe', name: 'Cafe & Fast Food', desc: 'Dining, snacks, food parcels, restaurant items' },
+  { id: 'general', name: 'General Retail & Grocery', desc: 'FMCG, departmental store, custom goods' }
+];
+
 export const AuthView = () => {
   const { login, signup } = useAuth();
   const { showToast } = useToast();
@@ -21,6 +32,7 @@ export const AuthView = () => {
     password: '',
     full_name: '',
     business_name: '',
+    business_category: 'stationery',
     gstin: '',
     phone: '',
     email: '',
@@ -554,6 +566,27 @@ export const AuthView = () => {
                   value={signupForm.business_name}
                   onChange={(e) => setSignupForm({ ...signupForm, business_name: e.target.value })}
                 />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  Business Industry / Primary Trade <span style={{ color: 'var(--color-terracotta)' }}>*</span>
+                </label>
+                <select
+                  className="form-select"
+                  required
+                  value={signupForm.business_category}
+                  onChange={(e) => setSignupForm({ ...signupForm, business_category: e.target.value })}
+                >
+                  {BUSINESS_SECTORS.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {s.desc}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginTop: '4px' }}>
+                  Sets your default store workflows, fields, and inventory units. You can add more stores to your enterprise later.
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>

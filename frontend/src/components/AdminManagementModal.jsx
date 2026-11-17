@@ -5,7 +5,7 @@ import { STATES_LIST, UT_LIST } from '../constants/states';
 import { PasswordInput } from './PasswordInput';
 
 export const AdminManagementModal = ({ isOpen, onClose }) => {
-  const { business, refreshBusiness, apiFetch } = useAuth();
+  const { business, businesses, refreshBusiness, apiFetch } = useAuth();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState('staff'); // 'staff' or 'business'
@@ -16,6 +16,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
   const [staffList, setStaffList] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [selectedStoreFilter, setSelectedStoreFilter] = useState('all');
 
   // New Staff Form State
   const initialStaffForm = {
@@ -23,6 +24,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     username: '',
     password: '',
     role: 'staff',
+    business_id: business?.id || '',
     phone: '',
     email: '',
     otp: ''
@@ -42,6 +44,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
   // ==========================================
   const [bizForm, setBizForm] = useState({
     business_name: '',
+    business_category: 'stationery',
     gstin: '',
     phone: '',
     email: '',
@@ -64,6 +67,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     if (business) {
       setBizForm({
         business_name: business.business_name || '',
+        business_category: business.business_category || 'stationery',
         gstin: business.gstin || '',
         phone: business.phone || '',
         email: business.email || '',
@@ -79,14 +83,20 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
         textbee_api_key: business.textbee_api_key_masked || '',
         textbee_demo_mode: business.textbee_demo_mode ?? true
       });
+      if (!staffForm.business_id) {
+        setStaffForm((prev) => ({ ...prev, business_id: business.id }));
+      }
     }
   }, [business, isOpen]);
 
-  // Load staff list
+  // Load staff list with optional enterprise store filtering
   const loadStaff = async () => {
     setLoadingStaff(true);
     try {
-      const res = await apiFetch('/api/auth/staff');
+      const url = selectedStoreFilter && selectedStoreFilter !== 'all'
+        ? `/api/auth/staff?store_id=${selectedStoreFilter}`
+        : '/api/auth/staff';
+      const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
         setStaffList(data || []);
@@ -102,7 +112,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     if (isOpen && activeTab === 'staff') {
       loadStaff();
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, selectedStoreFilter]);
 
   if (!isOpen) return null;
 
@@ -400,7 +410,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                   </div>
 
                   <form onSubmit={handleCreateStaff}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.2fr', gap: '12px' }}>
                       <div className="form-group">
                         <label className="form-label">Employee Full Name *</label>
                         <input
@@ -422,6 +432,28 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                         >
                           <option value="staff">Billing Cashier (Invoicing Only)</option>
                           <option value="inventory_manager">Storekeeper (Stock & Catalog)</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Assign to Store / Outlet *</label>
+                        <select
+                          className="form-select"
+                          required
+                          value={staffForm.business_id || business?.id || ''}
+                          onChange={(e) => setStaffForm({ ...staffForm, business_id: e.target.value })}
+                        >
+                          {businesses && businesses.length > 0 ? (
+                            businesses.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.business_name} ({b.business_category || 'General'})
+                              </option>
+                            ))
+                          ) : (
+                            <option value={business?.id || ''}>
+                              {business?.business_name || 'Primary Store'}
+                            </option>
+                          )}
                         </select>
                       </div>
                     </div>
@@ -599,6 +631,31 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                 </div>
               )}
 
+              {/* Store Filter Bar & Staff Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-forest)' }}>
+                  Enterprise Staff Roster ({staffList.length})
+                </div>
+                {businesses && businesses.length > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Filter Outlet:</label>
+                    <select
+                      className="form-select"
+                      style={{ padding: '4px 10px', fontSize: '12px', width: 'auto', minWidth: '170px' }}
+                      value={selectedStoreFilter}
+                      onChange={(e) => setSelectedStoreFilter(e.target.value)}
+                    >
+                      <option value="all">All Enterprise Outlets</option>
+                      {businesses.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.business_name} ({b.business_category || 'General'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
               {/* Roster of Active & Deactivated Staff */}
               {loadingStaff ? (
                 <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-muted)' }}>
@@ -606,7 +663,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                 </div>
               ) : staffList.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '30px', backgroundColor: '#F8F6F0', borderRadius: '8px', color: 'var(--color-muted)' }}>
-                  No staff members currently registered under this business. Click <b>"+ Add Staff Member"</b> above to grant employee access.
+                  No staff members currently registered under this outlet. Click <b>"+ Add Staff Member"</b> above to grant employee access.
                 </div>
               ) : (
                 <div style={{ border: '1px solid var(--color-stone)', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#ffffff' }}>
@@ -616,6 +673,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                         <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Employee</th>
                         <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Username</th>
                         <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Role</th>
+                        <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Assigned Store</th>
                         <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Status</th>
                         <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: '12px', color: 'var(--color-forest)', fontWeight: 700 }}>Actions</th>
                       </tr>
@@ -623,6 +681,8 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                     <tbody>
                       {staffList.map((st) => {
                         const isActive = st.is_active !== false;
+                        const storeName = st.business_name || (businesses?.find((b) => b.id === st.business_id)?.business_name) || business?.business_name || 'Primary Store';
+                        const storeCategory = st.business_category || (businesses?.find((b) => b.id === st.business_id)?.business_category) || '';
                         return (
                           <tr key={st.id} style={{ borderBottom: '1px solid #F1EFE9', backgroundColor: '#ffffff' }}>
                             <td style={{ padding: '10px 14px' }}>
@@ -645,6 +705,18 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                               >
                                 {st.role === 'inventory_manager' ? 'Storekeeper' : 'Billing Cashier'}
                               </span>
+                            </td>
+                            <td style={{ padding: '10px 14px' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', backgroundColor: '#F1F5F9', padding: '3px 8px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
+                                <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#1E293B' }}>
+                                  {storeName}
+                                </span>
+                                {storeCategory && (
+                                  <span style={{ fontSize: '9.5px', textTransform: 'capitalize', color: '#2563EB', fontWeight: 700 }}>
+                                    ({storeCategory})
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td style={{ padding: '10px 14px' }}>
                               <span
@@ -714,7 +786,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
           {/* ================================================================ */}
           {activeTab === 'business' && (
             <form onSubmit={handleSaveBizSettings}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '12px' }}>
                 <div className="form-group">
                   <label className="form-label">Business / Shop Name *</label>
                   <input
@@ -724,6 +796,25 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                     value={bizForm.business_name}
                     onChange={(e) => setBizForm({ ...bizForm, business_name: e.target.value })}
                   />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Primary Trade Category *</label>
+                  <select
+                    className="form-select"
+                    required
+                    value={bizForm.business_category || 'stationery'}
+                    onChange={(e) => setBizForm({ ...bizForm, business_category: e.target.value })}
+                  >
+                    <option value="stationery">Books & Stationery</option>
+                    <option value="pharmacy">Pharmacy & Healthcare</option>
+                    <option value="electronics">Electronics & Appliances</option>
+                    <option value="electrical">Electricals & Lighting</option>
+                    <option value="automobile">Automobile & Hardware</option>
+                    <option value="garments">Garments & Apparel</option>
+                    <option value="cafe">Cafe & Fast Food</option>
+                    <option value="general">General Retail & Trade</option>
+                  </select>
                 </div>
 
                 <div className="form-group">

@@ -1,61 +1,61 @@
 /* ==========================================================================
-   HISABKITAB DESIGN SYSTEM TOKENS & STYLES
-   Inspired by traditional accounting ledgers and archival stationery.
+   HISABKITAB 2026 MODERN SAAS DESIGN SYSTEM TOKENS
+   Clean, high-contrast, professional, and accessible.
    ========================================================================== */
 
 :root {
-  /* Core Brand Colors */
-  --color-forest:        #243c32; /* Primary: Sidebar, primary actions, titles */
-  --color-forest-dark:   #192c24; /* Pressed / deep brand */
-  --color-forest-hover:  #2d493e; /* Button hover */
-  --color-forest-subtle: #e8eee9; /* Subtle badge / pill tint */
+  /* Core Modern Slate Brand Tokens */
+  --color-forest:        #0F172A; /* Slate 900: Sidebar, primary actions, titles */
+  --color-forest-dark:   #020617; /* Slate 950: Pressed / deep brand */
+  --color-forest-hover:  #1E293B; /* Slate 800: Button hover */
+  --color-forest-subtle: #F1F5F9; /* Slate 100: Subtle badge / pill tint */
 
-  /* Neutral Stationery Surfaces */
-  --color-ivory:         #f5f1e8; /* Warm Ivory main workspace background */
-  --color-paper:         #ffffff; /* Paper White for sheets, cards, tables */
-  --color-stone:         #d8d0c2; /* 1px crisp borders, dividers */
-  --color-stone-light:   #ede8df; /* Table headers, subtle card frames */
-  --color-stone-hover:   #e2dcd1;
+  /* Clean Modern Surfaces (No Retro Yellowish Paper) */
+  --color-ivory:         #F8FAFC; /* Slate 50: Crisp, clean, modern SaaS background */
+  --color-paper:         #FFFFFF; /* Pure White: Cards, tables, sheets */
+  --color-stone:         #E2E8F0; /* Slate 200: 1px crisp hairline borders */
+  --color-stone-light:   #F1F5F9; /* Slate 100: Table headers, subtle card frames */
+  --color-stone-hover:   #CBD5E1; /* Slate 300: Hover border */
 
-  /* Secondary & Highlight Accents */
-  --color-copper:        #b87352; /* Muted Copper for secondary actions & badges */
-  --color-copper-dark:   #9c5e40;
-  --color-copper-hover:  #c78363;
-  --color-copper-subtle: #f9efe9;
+  /* Modern Primary & Accent Colors */
+  --color-copper:        #2563EB; /* Royal Blue: Modern primary actions & badges */
+  --color-copper-dark:   #1D4ED8; /* Blue 700: Pressed */
+  --color-copper-hover:  #3B82F6; /* Blue 500: Hover */
+  --color-copper-subtle: #EFF6FF; /* Blue 50: Tinted badges */
 
-  /* High-Contrast Typography */
-  --color-charcoal:      #292d2a; /* Body text (dense, readable) */
-  --color-muted:         #68706b; /* Metadata, timestamps, helper text */
+  /* Razor-Sharp Typography */
+  --color-charcoal:      #0F172A; /* Slate 900: High-contrast body text */
+  --color-muted:         #64748B; /* Slate 500: Clean metadata & helper text */
 
-  /* Ledger Semantic Statuses */
-  --status-paid-bg:      #e9f5ee;
-  --status-paid-text:    #1d603a;
-  --status-paid-border:  #bde4cc;
+  /* Modern Semantic Statuses */
+  --status-paid-bg:      #ECFDF5;
+  --status-paid-text:    #065F46;
+  --status-paid-border:  #A7F3D0;
 
-  --status-unpaid-bg:    #faebea;
-  --status-unpaid-text:  #a12620;
-  --status-unpaid-border:#f4c7c4;
+  --status-unpaid-bg:    #FEF2F2;
+  --status-unpaid-text:  #991B1B;
+  --status-unpaid-border:#FECACA;
 
-  --status-partial-bg:   #fcf3e6;
-  --status-partial-text: #965b16;
-  --status-partial-border:#f5dcba;
+  --status-partial-bg:   #FFFBEB;
+  --status-partial-text: #92400E;
+  --status-partial-border:#FDE68A;
 
   /* Typography Stacks */
-  --font-heading: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono:    'JetBrains Mono', 'Consolas', monospace;
 
-  /* Shadows - Understated & Restrained */
-  --shadow-subtle: 0 1px 2px rgba(41, 45, 42, 0.05);
-  --shadow-card:   0 2px 6px rgba(41, 45, 42, 0.06);
-  --shadow-modal:  0 12px 30px rgba(36, 60, 50, 0.16);
+  /* Modern Elevated Shadows */
+  --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-card:   0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.08);
+  --shadow-modal:  0 20px 25px -5px rgb(0 0 0 / 0.12), 0 8px 10px -6px rgb(0 0 0 / 0.12);
 
-  /* Dimensions */
+  /* Modern Dimensions */
   --sidebar-width: 250px;
   --sidebar-collapsed-width: 72px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
 /* Base Reset & Typography */

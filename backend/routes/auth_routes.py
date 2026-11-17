@@ -25,6 +25,7 @@ class SignupRequest(BaseModel):
     password: str = Field(..., min_length=6)
     full_name: str = Field(..., min_length=2)
     business_name: str = Field(..., min_length=2)
+    business_category: Optional[str] = "general"
     phone: str = Field(..., min_length=7)
     state: str = Field(..., min_length=2)
     gstin: Optional[str] = ""
@@ -43,6 +44,7 @@ class CreateStaffRequest(BaseModel):
     username: str = Field(..., min_length=3)
     password: str = Field(..., min_length=6)
     role: str = "staff" # "staff" (Billing Cashier) or "inventory_manager" (Storekeeper)
+    business_id: Optional[str] = None
     phone: Optional[str] = ""
     email: Optional[str] = ""
     otp: str = Field(..., min_length=4)
@@ -140,9 +142,12 @@ def register_business(data: SignupRequest):
     clean_phone = data.phone.strip()
     clean_state = data.state.strip()
 
+    clean_cat = (data.business_category or "general").strip().lower()
+
     # Create new business document in settings_col
     new_business = {
         "business_name": clean_bname,
+        "business_category": clean_cat,
         "gstin": (data.gstin or "").strip().upper(),
         "phone": clean_phone,
         "email": (data.email or "").strip(),
@@ -159,11 +164,14 @@ def register_business(data: SignupRequest):
         "textbee_api_key": "",
         "textbee_device_id": "",
         "textbee_demo_mode": True,
+        "is_primary": True,
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc)
     }
     res = settings_col.insert_one(new_business)
     biz_id = str(res.inserted_id)
+    settings_col.update_one({"_id": res.inserted_id}, {"$set": {"enterprise_id": biz_id}})
+    new_business["enterprise_id"] = biz_id
 
     user_doc = {
         "username": clean_username,
@@ -237,11 +245,25 @@ def login(data: LoginRequest):
 
 @router.get("/me")
 def get_me(current_user: dict = Depends(get_current_user)):
-    """Fetch current user profile and their specific business settings from MongoDB."""
+    """Fetch current user profile, active business, and all accessible branches in this enterprise."""
     business = get_business_for_user(current_user)
+    ent_id = business.get("enterprise_id") or str(business.get("_id", ""))
+    biz_list = []
+    if current_user.get("role") == "admin" and ent_id:
+        biz_cursor = settings_col.find({"$or": [{"enterprise_id": ent_id}, {"_id": business.get("_id")}]}).sort("business_name", 1)
+        biz_list = serialize_doc(list(biz_cursor))
+        for b in biz_list:
+            b["is_active"] = (b.get("id") == str(current_user.get("business_id", "")))
+    else:
+        # Non-admin staff members are isolated to their single assigned store
+        b_dict = serialize_doc(business)
+        b_dict["is_active"] = True
+        biz_list = [b_dict]
+
     return {
         "user": current_user,
-        "business": serialize_doc(business)
+        "business": serialize_doc(business),
+        "businesses": biz_list
     }
 
 # ==============================================================================
@@ -249,12 +271,41 @@ def get_me(current_user: dict = Depends(get_current_user)):
 # ==============================================================================
 
 @router.get("/staff")
-def list_staff(admin_user: dict = Depends(require_admin)):
-    """Admin-only: List all staff accounts belonging to this administrator's business."""
-    b_id = admin_user.get("business_id")
-    query = {"business_id": b_id, "role": {"$ne": "admin"}} if b_id else {"role": {"$ne": "admin"}}
+def list_staff(store_id: Optional[str] = None, admin_user: dict = Depends(require_admin)):
+    """Admin-only: List all staff accounts belonging to this administrator's enterprise or store."""
+    biz = get_business_for_user(admin_user)
+    ent_id = biz.get("enterprise_id") or str(biz.get("_id", ""))
+    
+    ent_businesses = list(settings_col.find(
+        {"$or": [{"enterprise_id": ent_id}, {"_id": biz.get("_id")}]},
+        {"_id": 1, "business_name": 1, "business_category": 1}
+    ))
+    b_map = {str(b["_id"]): b for b in ent_businesses}
+    ent_b_ids = list(b_map.keys())
+
+    if store_id and store_id != "all":
+        query = {"business_id": store_id, "role": {"$ne": "admin"}}
+    else:
+        query = {
+            "$or": [
+                {"business_id": {"$in": ent_b_ids}},
+                {"business_id": {"$exists": False}},
+                {"business_id": None}
+            ],
+            "role": {"$ne": "admin"}
+        }
+
     staff_members = list(users_col.find(query, {"password_hash": 0}).sort("created_at", -1))
-    return serialize_doc(staff_members)
+    results = serialize_doc(staff_members)
+    for s in results:
+        s_bid = s.get("business_id")
+        if s_bid and s_bid in b_map:
+            s["business_name"] = b_map[s_bid].get("business_name", "")
+            s["business_category"] = b_map[s_bid].get("business_category", "")
+        else:
+            s["business_name"] = biz.get("business_name", "Primary Store")
+            s["business_category"] = biz.get("business_category", "stationery")
+    return results
 
 @router.post("/staff/send-otp")
 def send_staff_authorization_otp(admin_user: dict = Depends(require_admin)):
@@ -331,6 +382,15 @@ def create_staff_with_otp(data: CreateStaffRequest, admin_user: dict = Depends(r
     biz_id = str(biz.get("_id"))
     biz_name = biz.get("business_name", "")
 
+    if data.business_id:
+        try:
+            target_b = settings_col.find_one({"_id": ObjectId(data.business_id)})
+            if target_b:
+                biz_id = str(target_b["_id"])
+                biz_name = target_b.get("business_name", "")
+        except Exception:
+            pass
+
     # Role validation: staff (Billing Cashier) or inventory_manager (Storekeeper)
     assigned_role = data.role if data.role in ("staff", "inventory_manager") else "staff"
 
@@ -370,15 +430,17 @@ def create_staff_with_otp(data: CreateStaffRequest, admin_user: dict = Depends(r
 def toggle_staff_status(staff_id: str, admin_user: dict = Depends(require_admin)):
     """Admin-only: Instantly activate or deactivate a staff member's login access."""
     biz = get_business_for_user(admin_user)
-    biz_id = str(biz.get("_id"))
+    ent_id = biz.get("enterprise_id") or str(biz.get("_id"))
+    ent_stores = list(settings_col.find({"$or": [{"enterprise_id": ent_id}, {"_id": biz.get("_id")}]}, {"_id": 1}))
+    allowed_bids = {str(s["_id"]) for s in ent_stores}
 
     try:
         target = users_col.find_one({"_id": ObjectId(staff_id)})
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid staff ID format.")
 
-    if not target or target.get("business_id") != biz_id:
-        raise HTTPException(status_code=404, detail="Staff account not found under your business.")
+    if not target or (target.get("business_id") and target.get("business_id") not in allowed_bids):
+        raise HTTPException(status_code=404, detail="Staff account not found under your enterprise.")
 
     if target.get("role") == "admin":
         raise HTTPException(status_code=400, detail="Cannot deactivate primary administrator.")
@@ -415,15 +477,17 @@ def admin_reset_staff_password(
 ):
     """Admin-only: Instantly update a staff member's password without OTP."""
     biz = get_business_for_user(admin_user)
-    biz_id = str(biz.get("_id"))
+    ent_id = biz.get("enterprise_id") or str(biz.get("_id"))
+    ent_stores = list(settings_col.find({"$or": [{"enterprise_id": ent_id}, {"_id": biz.get("_id")}]}, {"_id": 1}))
+    allowed_bids = {str(s["_id"]) for s in ent_stores}
 
     try:
         target = users_col.find_one({"_id": ObjectId(staff_id)})
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid staff ID format.")
 
-    if not target or target.get("business_id") != biz_id:
-        raise HTTPException(status_code=404, detail="Staff account not found under your store.")
+    if not target or (target.get("business_id") and target.get("business_id") not in allowed_bids):
+        raise HTTPException(status_code=404, detail="Staff account not found under your enterprise.")
 
     if target.get("role") == "admin":
         raise HTTPException(status_code=400, detail="Admin credentials must be updated via Account Settings or Forgot Password.")

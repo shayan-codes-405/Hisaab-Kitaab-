@@ -1,11 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { STATES_LIST, UT_LIST } from '../constants/states';
 
 export const Header = ({ activeTab, onNewInvoice, onNewProduct, onOpenAdminModal, onToggleMobileSidebar }) => {
-  const { business, isAdmin, user } = useAuth();
+  const { business, businesses, switchBusiness, createBusiness, fetchBusinesses, isAdmin, user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const dateInputRef = useRef(null);
+
+  // Store Switcher & New Store Modal State
+  const [showStoreSwitcher, setShowStoreSwitcher] = useState(false);
+  const [showAddStoreModal, setShowAddStoreModal] = useState(false);
+  const [isSubmittingStore, setIsSubmittingStore] = useState(false);
+  const [newStoreForm, setNewStoreForm] = useState({
+    business_name: '',
+    business_category: 'stationery',
+    phone: '',
+    state: 'Maharashtra',
+    gstin: '',
+    address: ''
+  });
+
+  const switcherRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target)) {
+        setShowStoreSwitcher(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    fetchBusinesses();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -52,6 +83,25 @@ export const Header = ({ activeTab, onNewInvoice, onNewProduct, onOpenAdminModal
   // Stock persons (inventory_manager) MUST NOT have invoicing access
   const canIssueInvoice = isAdmin || user?.role === 'staff';
 
+  const handleCreateNewStore = async (e) => {
+    e.preventDefault();
+    if (!newStoreForm.business_name.trim()) return;
+    setIsSubmittingStore(true);
+    const success = await createBusiness(newStoreForm);
+    setIsSubmittingStore(false);
+    if (success) {
+      setShowAddStoreModal(false);
+      setNewStoreForm({
+        business_name: '',
+        business_category: 'stationery',
+        phone: business?.phone || '',
+        state: business?.state || 'Maharashtra',
+        gstin: '',
+        address: ''
+      });
+    }
+  };
+
   return (
     <header className="app-header">
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -71,20 +121,180 @@ export const Header = ({ activeTab, onNewInvoice, onNewProduct, onOpenAdminModal
         </button>
 
         <div>
-          <h1 className="header-title" style={{ fontSize: '17px', fontWeight: 700, color: 'var(--color-forest)', margin: 0, letterSpacing: '-0.01em' }}>
-            {getTabTitle()}
-          </h1>
-          <div className="header-subtitle" style={{ fontSize: '12px', color: 'var(--color-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>
-              {business?.business_name || 'My Business'}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1 className="header-title" style={{ fontSize: '17px', fontWeight: 700, color: 'var(--color-forest)', margin: 0, letterSpacing: '-0.01em' }}>
+              {getTabTitle()}
+            </h1>
+
+            {/* Enterprise Store Switcher Pill & Dropdown (Admin) or Assigned Store Badge (Staff) */}
+            {isAdmin ? (
+              <div ref={switcherRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowStoreSwitcher(!showStoreSwitcher)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '3px 9px',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#0F172A',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Switch active business or outlet"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                  <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {business?.business_name || 'My Store'}
+                  </span>
+                  <span style={{ fontSize: '9.5px', textTransform: 'uppercase', backgroundColor: '#EFF6FF', color: '#1D4ED8', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>
+                    {business?.business_category || 'Stationery'}
+                  </span>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+
+                {/* Store Switcher Dropdown Menu */}
+                {showStoreSwitcher && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '10px',
+                      boxShadow: '0 12px 28px -4px rgba(0,0,0,0.15)',
+                      minWidth: '280px',
+                      zIndex: 1000,
+                      padding: '8px'
+                    }}
+                  >
+                    <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#64748B', padding: '4px 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Enterprise Outlets &amp; Stores
+                    </div>
+                    {businesses && businesses.length > 0 ? (
+                      businesses.map((b) => {
+                        const isCurrent = b.id === business?.id;
+                        return (
+                          <div
+                            key={b.id}
+                            onClick={() => {
+                              switchBusiness(b.id);
+                              setShowStoreSwitcher(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 10px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              backgroundColor: isCurrent ? '#F1F5F9' : 'transparent',
+                              marginBottom: '2px',
+                              transition: 'background-color 0.1s ease'
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '12.5px', fontWeight: isCurrent ? 700 : 500, color: '#0F172A' }}>
+                                {b.business_name}
+                              </div>
+                              <div style={{ fontSize: '10.5px', color: '#64748B' }}>
+                                Sector: <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{b.business_category || 'General'}</span>
+                              </div>
+                            </div>
+                            {isCurrent && (
+                              <span style={{ fontSize: '10px', fontWeight: 700, color: '#059669', backgroundColor: '#D1FAE5', padding: '1px 6px', borderRadius: '4px' }}>
+                                Active
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ padding: '8px', fontSize: '12px', color: '#64748B' }}>
+                        {business?.business_name || 'Primary Store'}
+                      </div>
+                    )}
+
+                    <div style={{ borderTop: '1px solid #E2E8F0', marginTop: '6px', paddingTop: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowStoreSwitcher(false);
+                          setShowAddStoreModal(true);
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          padding: '7px',
+                          backgroundColor: '#EFF6FF',
+                          color: '#1D4ED8',
+                          border: '1px dashed #BFDBFE',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        + Add New Store / Outlet
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '3px 9px',
+                  backgroundColor: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#334155'
+                }}
+                title={`Assigned to: ${business?.business_name || 'Store'}`}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {business?.business_name || 'My Store'}
+                </span>
+                <span style={{ fontSize: '9.5px', textTransform: 'uppercase', backgroundColor: '#F1F5F9', color: '#475569', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>
+                  {business?.business_category || 'Store'}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="header-subtitle" style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             {business?.gstin && (
               <span className="desktop-meta" style={{ backgroundColor: 'var(--color-stone-light)', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
                 GSTIN: {business.gstin}
               </span>
             )}
-            <span className="desktop-meta">•</span>
             <span className="desktop-meta">State: {business?.state || 'Maharashtra'}</span>
+            <span className="desktop-meta">•</span>
+            <span className="desktop-meta">Logged in: <b>{user?.full_name}</b> ({user?.role === 'admin' ? 'Owner' : user?.role === 'inventory_manager' ? 'Storekeeper' : 'Cashier'})</span>
           </div>
         </div>
       </div>
@@ -169,6 +379,146 @@ export const Header = ({ activeTab, onNewInvoice, onNewProduct, onOpenAdminModal
           </button>
         )}
       </div>
+
+      {/* Add New Store / Outlet Modal */}
+      {showAddStoreModal && (
+        <div className="modal-backdrop" onClick={() => setShowAddStoreModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', color: '#0F172A' }}>
+                  Add New Store / Branch Outlet
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#64748B' }}>
+                  Register another commercial trade under your enterprise (e.g. Pharmacy, Garments, Cafe).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddStoreModal(false)}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: '16px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewStore}>
+              <div className="modal-body" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Store / Business Name *</label>
+                  <input
+                    type="text"
+                    required
+                    className="form-input"
+                    placeholder="e.g. Akhtar Pharmacy, Akhtar Garments"
+                    value={newStoreForm.business_name}
+                    onChange={(e) => setNewStoreForm({ ...newStoreForm, business_name: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Trade Sector / Business Category *</label>
+                  <select
+                    className="form-select"
+                    required
+                    value={newStoreForm.business_category}
+                    onChange={(e) => setNewStoreForm({ ...newStoreForm, business_category: e.target.value })}
+                  >
+                    <option value="stationery">Books &amp; Stationery</option>
+                    <option value="pharmacy">Pharmacy &amp; Healthcare</option>
+                    <option value="electronics">Mobile &amp; Electronics</option>
+                    <option value="electricals">Electricals &amp; Lighting</option>
+                    <option value="automobile">Automobile &amp; Spare Parts</option>
+                    <option value="garments">Garments &amp; Fashion</option>
+                    <option value="cafe">Cafe &amp; Fast Food</option>
+                    <option value="general">General Retail &amp; Grocery</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Store Phone *</label>
+                    <input
+                      type="tel"
+                      required
+                      className="form-input"
+                      placeholder="e.g. 9876543210"
+                      value={newStoreForm.phone}
+                      onChange={(e) => setNewStoreForm({ ...newStoreForm, phone: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">State *</label>
+                    <select
+                      className="form-select"
+                      required
+                      value={newStoreForm.state}
+                      onChange={(e) => setNewStoreForm({ ...newStoreForm, state: e.target.value })}
+                    >
+                      <optgroup label="States (28)">
+                        {STATES_LIST.map((s) => (
+                          <option key={s.code} value={s.name}>
+                            {s.name} ({s.code})
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Union Territories (8)">
+                        {UT_LIST.map((u) => (
+                          <option key={u.code} value={u.name}>
+                            {u.name} ({u.code})
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">GSTIN (Optional)</label>
+                  <input
+                    type="text"
+                    maxLength={15}
+                    className="form-input"
+                    placeholder="15-digit GSTIN"
+                    value={newStoreForm.gstin}
+                    onChange={(e) => setNewStoreForm({ ...newStoreForm, gstin: e.target.value.toUpperCase() })}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Shop Address (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Branch #2, Main Bazaar"
+                    value={newStoreForm.address}
+                    onChange={(e) => setNewStoreForm({ ...newStoreForm, address: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #E2E8F0' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddStoreModal(false)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingStore}
+                  className="btn btn-primary btn-sm"
+                >
+                  {isSubmittingStore ? 'Creating...' : 'Create Store & Switch Now →'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

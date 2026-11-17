@@ -14,19 +14,38 @@ def get_dashboard_metrics(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     staff: Optional[str] = Query(None),
+    store_id: Optional[str] = Query(None),
     user: dict = Depends(require_admin)
 ):
     """
     Calculate real-time business metrics dynamically from MongoDB records:
+    - Scoped by store or consolidated across all enterprise stores.
     - Filtered by dynamic date range (Today, This Week, This Month, Last 6 Months, All Time, Custom).
     - Sales, invoice volume, paid/unpaid balances.
     - Gross profit calculation based on purchase costs.
     - Product Inventory threshold status.
     - Revenue trends for Chart.js.
     - Staff sales attribution & product performance breakdown.
+    - Star product accurately calculated across sales line items.
     """
-    all_invoices = list(invoices_col.find({}))
-    products = list(products_col.find({}))
+    if user.get("role") != "admin":
+        active_b_id = str(user.get("business_id", ""))
+    else:
+        active_b_id = store_id or str(user.get("business_id", ""))
+    inv_filter = {}
+    prod_filter = {}
+    if active_b_id and active_b_id != "all":
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == active_b_id and user_biz.get("enterprise_id") == active_b_id)
+        if is_primary:
+            inv_filter = {"$or": [{"business_id": active_b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]}
+            prod_filter = {"$or": [{"business_id": active_b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]}
+        else:
+            inv_filter = {"business_id": active_b_id}
+            prod_filter = {"business_id": active_b_id}
+
+    all_invoices = list(invoices_col.find(inv_filter))
+    products = list(products_col.find(prod_filter))
 
     # 1. Product & Inventory Metrics (Global)
     prod_map = {str(p["_id"]): p for p in products}
@@ -314,7 +333,24 @@ def get_dashboard_metrics(
     # Sort staff by revenue descending
     staff_performance.sort(key=lambda x: x["total_sales"], reverse=True)
 
-    # 6. Recent Invoices in this filtered range
+    # 6. Overall Star Product across all sales in this timeframe
+    overall_products = {}
+    for inv in filtered_invoices:
+        for it in inv.get("items", []):
+            pname = (it.get("name") or it.get("product_name") or "").strip()
+            if not pname:
+                continue
+            qty = float(it.get("quantity", 0.0))
+            rev = float(it.get("line_total") or it.get("total") or it.get("taxable_amount") or 0.0)
+            if pname not in overall_products:
+                overall_products[pname] = {"product_name": pname, "quantity": 0, "revenue": 0.0}
+            overall_products[pname]["quantity"] += int(qty)
+            overall_products[pname]["revenue"] += rev
+
+    sorted_stars = sorted(overall_products.values(), key=lambda x: x["revenue"], reverse=True)
+    star_product = sorted_stars[0] if sorted_stars else None
+
+    # 7. Recent Invoices in this filtered range
     recent = sorted(filtered_invoices, key=lambda x: str(x.get("created_at", "")), reverse=True)[:6]
 
     return {
@@ -323,6 +359,7 @@ def get_dashboard_metrics(
             "start": start_bound,
             "end": end_bound
         },
+        "star_product": star_product,
         "kpi": {
             "total_sales": round(total_sales, 2),
             "total_invoices": len(filtered_invoices),

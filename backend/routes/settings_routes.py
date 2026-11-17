@@ -15,8 +15,18 @@ from config import (
 
 router = APIRouter(prefix="/api/settings", tags=["Business & GST Settings"])
 
+class BusinessCreateRequest(BaseModel):
+    business_name: str
+    business_category: str = "general"
+    phone: str
+    state: str
+    gstin: Optional[str] = ""
+    email: Optional[str] = ""
+    address: Optional[str] = ""
+
 class BusinessSettingsUpdate(BaseModel):
     business_name: str
+    business_category: Optional[str] = "general"
     gstin: str
     phone: str
     email: str
@@ -33,6 +43,94 @@ class BusinessSettingsUpdate(BaseModel):
     textbee_api_key: Optional[str] = None
     textbee_device_id: Optional[str] = None
     textbee_demo_mode: Optional[bool] = None
+
+@router.get("/businesses")
+def list_enterprise_businesses(user: dict = Depends(require_staff_or_admin)):
+    """List all businesses / branches belonging to this enterprise."""
+    current_biz = get_business_for_user(user)
+    ent_id = current_biz.get("enterprise_id") or str(current_biz.get("_id", ""))
+    
+    # Query businesses by enterprise_id, or fallback to all if single tenant
+    query = {"$or": [{"enterprise_id": ent_id}, {"_id": current_biz.get("_id")}]} if ent_id else {}
+    businesses = list(settings_col.find(query).sort("business_name", 1))
+    
+    active_b_id = str(user.get("business_id", ""))
+    results = []
+    for b in businesses:
+        b_dict = serialize_doc(b)
+        b_dict["is_active"] = (b_dict.get("id") == active_b_id)
+        results.append(b_dict)
+    return results
+
+@router.post("/businesses")
+def create_enterprise_business(payload: BusinessCreateRequest, admin_user: dict = Depends(require_admin)):
+    """Admin-only: Add a new business, outlet or branch under this enterprise."""
+    current_biz = get_business_for_user(admin_user)
+    ent_id = current_biz.get("enterprise_id") or str(current_biz.get("_id", ""))
+    
+    clean_bname = payload.business_name.strip()
+    clean_cat = (payload.business_category or "general").strip().lower()
+    
+    new_doc = {
+        "enterprise_id": ent_id,
+        "business_name": clean_bname,
+        "business_category": clean_cat,
+        "gstin": payload.gstin.strip().upper() if payload.gstin else (current_biz.get("gstin") or ""),
+        "phone": payload.phone.strip(),
+        "email": payload.email.strip() if payload.email else (current_biz.get("email") or ""),
+        "state": payload.state.strip(),
+        "address": payload.address.strip(),
+        "invoice_prefix": "INV",
+        "next_invoice_number": 1,
+        "bank_name": current_biz.get("bank_name", ""),
+        "bank_account_no": current_biz.get("bank_account_no", ""),
+        "bank_ifsc": current_biz.get("bank_ifsc", ""),
+        "upi_id": current_biz.get("upi_id", ""),
+        "terms_conditions": current_biz.get("terms_conditions", "1. Goods once sold will not be returned.\n2. Payment due within 15 days of invoice date."),
+        "textbee_api_url": current_biz.get("textbee_api_url", ENV_TEXTBEE_URL),
+        "textbee_api_key": current_biz.get("textbee_api_key", ENV_TEXTBEE_KEY),
+        "textbee_device_id": current_biz.get("textbee_device_id", ENV_TEXTBEE_DEV),
+        "textbee_demo_mode": current_biz.get("textbee_demo_mode", ENV_TEXTBEE_DEMO),
+        "is_primary": False,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
+    }
+    
+    res = settings_col.insert_one(new_doc)
+    new_doc["_id"] = res.inserted_id
+    
+    return {
+        "message": f"New business '{clean_bname}' ({clean_cat}) added successfully!",
+        "business": serialize_doc(new_doc)
+    }
+
+@router.post("/switch-business/{business_id}")
+def switch_active_business(business_id: str, user: dict = Depends(require_admin)):
+    """Admin-only: Switch active store context to another business within this enterprise."""
+    try:
+        target_oid = ObjectId(business_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid business ID format.")
+        
+    target_biz = settings_col.find_one({"_id": target_oid})
+    if not target_biz:
+        raise HTTPException(status_code=404, detail="Target business not found.")
+        
+    uid_str = str(user.get("id") or user.get("_id"))
+    users_col.update_one(
+        {"_id": ObjectId(uid_str)},
+        {"$set": {
+            "business_id": str(target_oid),
+            "business_name": target_biz.get("business_name", "")
+        }}
+    )
+    
+    updated_user = users_col.find_one({"_id": ObjectId(uid_str)}, {"password_hash": 0})
+    return {
+        "message": f"Switched active store to {target_biz.get('business_name')}",
+        "user": serialize_doc(updated_user),
+        "business": serialize_doc(target_biz)
+    }
 
 @router.get("")
 def get_business_settings(user: dict = Depends(require_staff_or_admin)):
@@ -109,6 +207,7 @@ def update_business_settings(payload: BusinessSettingsUpdate, admin_user: dict =
         "bank_ifsc": payload.bank_ifsc.strip().upper(),
         "upi_id": payload.upi_id.strip(),
         "terms_conditions": payload.terms_conditions.strip(),
+        "business_category": (payload.business_category or "general").strip().lower(),
         "updated_at": datetime.now(timezone.utc)
     }
 

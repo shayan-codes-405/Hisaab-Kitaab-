@@ -337,11 +337,25 @@ def list_invoices(
     search: Optional[str] = None,
     payment_status: Optional[str] = None,
     staff: Optional[str] = None,
+    store_id: Optional[str] = None,
     limit: int = 100,
     user: dict = Depends(require_billing_or_admin)
 ):
-    """Retrieve invoice ledger with customer, payment status, and staff member filtering."""
+    """Retrieve invoice ledger with customer, payment status, staff member, and active store filtering."""
     filters = []
+
+    if user.get("role") == "staff":
+        b_id = str(user.get("business_id", ""))
+    else:
+        b_id = store_id or str(user.get("business_id", ""))
+
+    if b_id and b_id != "all":
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == b_id and user_biz.get("enterprise_id") == b_id)
+        if is_primary:
+            filters.append({"$or": [{"business_id": b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]})
+        else:
+            filters.append({"business_id": b_id})
 
     # Strict isolation: Cashiers (staff role) can ONLY view their own sales records!
     if user.get("role") == "staff":
@@ -433,7 +447,10 @@ def create_invoice(data: CreateInvoiceRequest, user: dict = Depends(require_bill
     else: # Partially Paid
         amount_paid = min(final_amount, float(data.amount_paid or 0.0))
 
+    biz_id = str(user.get("business_id", "") or settings.get("_id", ""))
+
     invoice_doc = {
+        "business_id": biz_id,
         "invoice_number": inv_number,
         "business_id": str(settings.get("_id")) if settings.get("_id") else None,
         "invoice_date": data.invoice_date or datetime.now().strftime("%Y-%m-%d"),

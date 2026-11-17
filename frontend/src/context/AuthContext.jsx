@@ -8,6 +8,7 @@ export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [business, setBusiness] = useState(null);
+  const [businesses, setBusinesses] = useState([]);
   const [token, setToken] = useState(() => {
     // Clean any permanent tokens so opening in a new tab/session always requires login for security
     try {
@@ -55,6 +56,7 @@ export const AuthProvider = ({ children }) => {
         const data = await res.json();
         setUser(data.user);
         setBusiness(data.business);
+        setBusinesses(data.businesses || []);
       } else {
         sessionStorage.removeItem('hisabkitab_token');
         localStorage.removeItem('hisabkitab_token');
@@ -134,6 +136,62 @@ export const AuthProvider = ({ children }) => {
     showToast('Logged out securely.', 'info');
   };
 
+  const fetchBusinesses = async () => {
+    if (!token) return;
+    try {
+      const res = await apiFetch('/api/settings/businesses');
+      if (res.ok) {
+        const list = await res.json();
+        setBusinesses(list || []);
+      }
+    } catch (err) {
+      console.error('Failed to load businesses list:', err);
+    }
+  };
+
+  const switchBusiness = async (businessId) => {
+    try {
+      const res = await apiFetch(`/api/settings/switch-business/${businessId}`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to switch business');
+      
+      setUser(data.user);
+      setBusiness(data.business);
+      await fetchBusinesses();
+      refreshData();
+      showToast(data.message || 'Switched active store', 'success');
+      return true;
+    } catch (err) {
+      showToast(err.message, 'error');
+      return false;
+    }
+  };
+
+  const createBusiness = async (bizPayload) => {
+    try {
+      const res = await apiFetch('/api/settings/businesses', {
+        method: 'POST',
+        body: JSON.stringify(bizPayload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to create business');
+      
+      showToast(data.message || 'New business branch added!', 'success');
+      if (data.business && data.business.id) {
+        await switchBusiness(data.business.id);
+      } else {
+        await fetchBusinesses();
+        refreshData();
+      }
+      return true;
+    } catch (err) {
+      showToast(err.message, 'error');
+      return false;
+    }
+  };
+
   const refreshBusiness = async () => {
     if (!token) return;
     try {
@@ -142,6 +200,7 @@ export const AuthProvider = ({ children }) => {
         const data = await res.json();
         setBusiness(data);
       }
+      await fetchBusinesses();
     } catch (err) {
       console.error('Failed to reload business profile:', err);
     }
@@ -152,6 +211,7 @@ export const AuthProvider = ({ children }) => {
       value={{
         user,
         business,
+        businesses,
         token,
         isAuthenticated: !!user,
         isAdmin: user?.role === 'admin',
@@ -165,6 +225,9 @@ export const AuthProvider = ({ children }) => {
         logout,
         apiFetch,
         refreshBusiness,
+        fetchBusinesses,
+        switchBusiness,
+        createBusiness,
         dataVersion,
         refreshData
       }}

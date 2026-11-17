@@ -14,7 +14,7 @@ export const SECTORS = [
 ];
 
 export const InventoryView = () => {
-  const { apiFetch, isAdmin, user, dataVersion, refreshData } = useAuth();
+  const { apiFetch, isAdmin, user, business, dataVersion, refreshData } = useAuth();
   const { showToast } = useToast();
 
   const [products, setProducts] = useState([]);
@@ -22,7 +22,8 @@ export const InventoryView = () => {
   const [loading, setLoading] = useState(false);
 
   // Sector and Custom Fields State
-  const [selectedSector, setSelectedSector] = useState('general');
+  const [selectedSector, setSelectedSector] = useState('stationery');
+  const [showSectorOverride, setShowSectorOverride] = useState(false);
   const [sectorFields, setSectorFields] = useState({});
   const [customSpecs, setCustomSpecs] = useState([]);
 
@@ -208,10 +209,15 @@ export const InventoryView = () => {
 
   const openAddModal = () => {
     setEditingProduct(null);
-    setFormData(initialForm);
-    setSelectedSector('general');
+    const storeSector = (business?.business_category || 'stationery').toLowerCase();
+    setSelectedSector(storeSector);
+    setShowSectorOverride(false);
     setSectorFields({});
     setCustomSpecs([]);
+    setFormData({
+      ...initialForm,
+      category: storeSector === 'pharmacy' ? 'Medicines' : storeSector === 'stationery' ? 'Stationery' : storeSector === 'electronics' ? 'Electronics' : storeSector === 'garments' ? 'Garments' : storeSector === 'cafe' ? 'Food & Beverage' : storeSector === 'automobile' ? 'Auto Parts' : 'General Goods'
+    });
     setPackagingMode('single');
     setPkgUnit('Box');
     setLooseUnit('Pcs');
@@ -231,7 +237,8 @@ export const InventoryView = () => {
 
   const openEditModal = (p) => {
     setEditingProduct(p);
-    setSelectedSector(p.industry_sector || 'general');
+    setSelectedSector(p.industry_sector || (business?.business_category || 'stationery').toLowerCase());
+    setShowSectorOverride(false);
     const sf = p.sector_fields ? { ...p.sector_fields } : {};
     if (!sf.batch_number && p.batch_number) sf.batch_number = p.batch_number;
     if (!sf.expiry_date && p.expiry_date) sf.expiry_date = p.expiry_date;
@@ -1625,56 +1632,84 @@ export const InventoryView = () => {
                   )}
                 </div>
 
-                {/* Multi-Industry Sector & Custom Fields Section */}
+                {/* Contextual Trade Sector & Specifications Section */}
                 <div style={{ padding: '14px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', marginTop: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '6px' }}>
                     <div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                        Industry Sector &amp; Specifications
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          Store Trade: {SECTORS.find((s) => s.id === selectedSector)?.name || 'General Retail'}
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#2563EB', backgroundColor: '#EFF6FF', padding: '2px 7px', borderRadius: '4px' }}>
+                          Auto-applied for {business?.business_name || 'Store'}
+                        </span>
                       </div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>
-                        Adapts form fields &amp; invoices for your exact trade (Pharma, Electronics, Lights, Auto, Garments, etc.)
+                      <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                        Displaying specifications tailored to your active store category.
                       </div>
                     </div>
-                    <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#2563EB', backgroundColor: '#EFF6FF', padding: '2px 8px', borderRadius: '12px' }}>
-                      Universal Trade Support
-                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowSectorOverride(!showSectorOverride)}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '6px',
+                        padding: '3px 9px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#334155',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {showSectorOverride ? 'Hide Sector Options' : 'Change Trade / Sector'}
+                    </button>
                   </div>
 
-                  {/* Sector Pills Selector */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
-                    {SECTORS.map((sec) => {
-                      const isSel = selectedSector === sec.id;
-                      return (
-                        <button
-                          key={sec.id}
-                          type="button"
-                          onClick={() => setSelectedSector(sec.id)}
-                          style={{
-                            padding: '5px 11px',
-                            borderRadius: '6px',
-                            fontSize: '11.5px',
-                            fontWeight: isSel ? 700 : 500,
-                            border: isSel ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
-                            backgroundColor: isSel ? '#EFF6FF' : '#FFFFFF',
-                            color: isSel ? '#1D4ED8' : '#334155',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          {isSel && (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                          )}
-                          <span>{sec.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {/* Optional Sector Override Pills (collapsed by default) */}
+                  {showSectorOverride && (
+                    <div style={{ backgroundColor: '#FFFFFF', padding: '10px', borderRadius: '6px', marginBottom: '12px', border: '1px solid #CBD5E1' }}>
+                      <div style={{ fontSize: '10.5px', color: '#64748B', marginBottom: '6px', fontWeight: 500 }}>
+                        Select an alternate industry sector if this specific product belongs to another trade:
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {SECTORS.map((sec) => {
+                          const isSel = selectedSector === sec.id;
+                          return (
+                            <button
+                              key={sec.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSector(sec.id);
+                                setShowSectorOverride(false);
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: '5px',
+                                fontSize: '11px',
+                                fontWeight: isSel ? 700 : 500,
+                                border: isSel ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+                                backgroundColor: isSel ? '#EFF6FF' : '#FFFFFF',
+                                color: isSel ? '#1D4ED8' : '#334155',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              {isSel && (
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                              )}
+                              <span>{sec.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Conditional Sector Specific Input Fields */}
                   <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>

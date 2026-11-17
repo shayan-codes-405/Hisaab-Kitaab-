@@ -29,7 +29,7 @@ ChartJS.register(
 );
 
 export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => {
-  const { apiFetch, dataVersion } = useAuth();
+  const { apiFetch, dataVersion, business, businesses, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
 
@@ -38,13 +38,17 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [storeScope, setStoreScope] = useState('current'); // 'current' or 'all'
 
-  const loadMetrics = async (rangeKey = selectedRange, forceLoader = false) => {
+  const loadMetrics = async (rangeKey = selectedRange, scope = storeScope, forceLoader = false) => {
     if (!data || forceLoader) {
       setLoading(true);
     }
     try {
       const params = new URLSearchParams({ range: rangeKey });
+      if (scope === 'all') {
+        params.append('store_id', 'all');
+      }
       if (rangeKey === 'custom' && customStart && customEnd) {
         params.append('start_date', customStart);
         params.append('end_date', customEnd);
@@ -62,8 +66,8 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
   };
 
   useEffect(() => {
-    loadMetrics(selectedRange);
-  }, [selectedRange, dataVersion]);
+    loadMetrics(selectedRange, storeScope);
+  }, [selectedRange, storeScope, dataVersion, business?.id]);
 
   const handleRangeChange = (rangeKey) => {
     setSelectedRange(rangeKey);
@@ -116,13 +120,19 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
   const allProdsMap = {};
   (staff_performance || []).forEach((st) => {
     (st.top_products || []).forEach((tp) => {
-      if (!allProdsMap[tp.name]) allProdsMap[tp.name] = { name: tp.name, qty: 0, revenue: 0 };
-      allProdsMap[tp.name].qty += (tp.quantity || 0);
-      allProdsMap[tp.name].revenue += (tp.revenue || 0);
+      const pName = (tp.product_name || tp.name || '').trim();
+      if (pName) {
+        if (!allProdsMap[pName]) allProdsMap[pName] = { name: pName, qty: 0, revenue: 0 };
+        allProdsMap[pName].qty += (tp.quantity || 0);
+        allProdsMap[pName].revenue += (tp.revenue || 0);
+      }
     });
   });
   const sortedAllProds = Object.values(allProdsMap).sort((a, b) => b.revenue - a.revenue);
-  const bestSeller = sortedAllProds[0] || null;
+  const starName = (data?.star_product?.product_name || '').trim();
+  const bestSeller = starName
+    ? { name: starName, qty: data.star_product.quantity || 0, revenue: data.star_product.revenue || 0 }
+    : (sortedAllProds[0]?.name ? sortedAllProds[0] : null);
 
   // Active cashier counters
   const activeCashiers = (staff_performance || []).filter(
@@ -136,7 +146,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
       {
         label: 'Gross Sales (₹)',
         data: charts?.monthly_sales?.sales || [],
-        backgroundColor: '#243C32',
+        backgroundColor: '#2563EB',
         borderRadius: 4,
         maxBarThickness: 38,
       }
@@ -214,7 +224,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
           backgroundColor: '#ffffff'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--color-forest)' }}>
               Period: {getRangeTitle()}
@@ -225,6 +235,44 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
               </div>
             )}
           </div>
+
+          {/* Store Scope Toggle (Current Store vs Enterprise Consolidated) */}
+          {isAdmin && businesses && businesses.length > 1 && (
+            <div style={{ display: 'flex', backgroundColor: '#F1F5F9', padding: '2px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+              <button
+                type="button"
+                onClick={() => setStoreScope('current')}
+                style={{
+                  border: 'none',
+                  backgroundColor: storeScope === 'current' ? '#2563EB' : 'transparent',
+                  color: storeScope === 'current' ? '#FFFFFF' : '#475569',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {business?.business_name || 'Active Store'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStoreScope('all')}
+                style={{
+                  border: 'none',
+                  backgroundColor: storeScope === 'all' ? '#2563EB' : 'transparent',
+                  color: storeScope === 'all' ? '#FFFFFF' : '#475569',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                All Outlets (All-in-One)
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Date Filter Preset Pills */}
