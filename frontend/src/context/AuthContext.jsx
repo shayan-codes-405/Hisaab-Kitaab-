@@ -10,13 +10,9 @@ export const AuthProvider = ({ children }) => {
   const [business, setBusiness] = useState(null);
   const [businesses, setBusinesses] = useState([]);
   const [token, setToken] = useState(() => {
-    // Clean any permanent tokens so opening in a new tab/session always requires login for security
-    try {
-      localStorage.removeItem('hisabkitab_token');
-    } catch (e) {}
-    return sessionStorage.getItem('hisabkitab_token');
+    return sessionStorage.getItem('hisabkitab_token') || localStorage.getItem('hisabkitab_token');
   });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   const { showToast } = useToast();
 
@@ -42,37 +38,43 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const checkMe = async () => {
-    setIsLoading(true);
-    if (!token) {
+  // Background token verification ONLY on initial page mount (never blocks user interaction)
+  useEffect(() => {
+    const savedToken = sessionStorage.getItem('hisabkitab_token') || localStorage.getItem('hisabkitab_token');
+    if (!savedToken) {
       setIsLoading(false);
       return;
     }
-    try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-        setBusiness(data.business);
-        setBusinesses(data.businesses || []);
-      } else {
-        sessionStorage.removeItem('hisabkitab_token');
-        localStorage.removeItem('hisabkitab_token');
-        setToken(null);
-        setUser(null);
-      }
-    } catch (err) {
-      console.error('Auth verification error:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    checkMe();
-  }, [token]);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    fetch(`${API_BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${savedToken}` },
+      signal: controller.signal
+    })
+      .then(async (res) => {
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+          setBusiness(data.business);
+          setBusinesses(data.businesses || []);
+          setToken(savedToken);
+        } else {
+          sessionStorage.removeItem('hisabkitab_token');
+          localStorage.removeItem('hisabkitab_token');
+          setToken(null);
+          setUser(null);
+        }
+      })
+      .catch((err) => {
+        console.warn('Initial session check skipped / offline:', err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, []);
 
   const login = async (username, password) => {
     try {
@@ -85,14 +87,14 @@ export const AuthProvider = ({ children }) => {
       if (!res.ok) {
         throw new Error(data.detail || 'Login failed.');
       }
-      // Store in sessionStorage so closing tab forces fresh signin for security
       sessionStorage.setItem('hisabkitab_token', data.token);
-      localStorage.removeItem('hisabkitab_token');
+      localStorage.setItem('hisabkitab_token', data.token);
       setToken(data.token);
       setUser(data.user);
       if (data.business) {
         setBusiness(data.business);
       }
+      setIsLoading(false);
       showToast(`Welcome back, ${data.user.full_name}!`, 'success');
       return true;
     } catch (err) {
@@ -113,12 +115,13 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.detail || 'Sign up failed.');
       }
       sessionStorage.setItem('hisabkitab_token', data.token);
-      localStorage.removeItem('hisabkitab_token');
+      localStorage.setItem('hisabkitab_token', data.token);
       setToken(data.token);
       setUser(data.user);
       if (data.business) {
         setBusiness(data.business);
       }
+      setIsLoading(false);
       showToast(`Welcome to HisabKitab, ${data.user.full_name}! Your account is ready.`, 'success');
       return true;
     } catch (err) {

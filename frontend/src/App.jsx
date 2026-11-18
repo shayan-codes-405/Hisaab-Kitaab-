@@ -42,52 +42,6 @@ const MainApplication = () => {
     }
   }, [isLoading, isAuthenticated, isAdmin, user, activeTab]);
 
-  if (isLoading) {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          backgroundColor: '#0F172A',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'fixed',
-          inset: 0,
-          zIndex: 9999,
-          userSelect: 'none'
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '18px',
-            animation: 'fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}
-        >
-          <BrandLogo size={52} textColor="#FFFFFF" subtitle="Cloud Ledger &amp; POS" />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-            <div
-              style={{
-                width: '16px',
-                height: '16px',
-                border: '2px solid rgba(255, 255, 255, 0.15)',
-                borderTopColor: '#3B82F6',
-                borderRadius: '50%',
-                animation: 'spin 0.8s linear infinite'
-              }}
-            />
-            <span style={{ fontSize: '13px', color: '#94A3B8', fontWeight: 500, letterSpacing: '0.01em' }}>
-              Preparing your workspace...
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (!isAuthenticated) {
     return <AuthView />;
   }

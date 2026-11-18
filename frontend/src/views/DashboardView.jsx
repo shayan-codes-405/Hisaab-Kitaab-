@@ -530,7 +530,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
           </div>
         ) : (
           <div className="ledger-table-container" style={{ border: 'none', boxShadow: 'none', width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table className="ledger-table" style={{ width: '100%', minWidth: '720px' }}>
+            <table className="ledger-table" style={{ width: '100%', tableLayout: 'auto' }}>
               <thead>
                 <tr>
                   <th style={{ whiteSpace: 'nowrap' }}>Staff Member</th>

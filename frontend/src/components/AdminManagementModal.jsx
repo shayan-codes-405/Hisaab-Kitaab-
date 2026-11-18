@@ -342,7 +342,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
       <div
         className="modal-sheet modal-sheet-lg"
         style={{
-          maxWidth: '960px',
+          maxWidth: '1020px',
           width: '95%',
           maxHeight: '88vh',
           height: 'auto',
@@ -398,10 +398,10 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
           {/* Left Category Navigation Rail */}
           <div
             style={{
-              width: '210px',
+              width: '185px',
               backgroundColor: '#F8FAFC',
               borderRight: '1px solid #E2E8F0',
-              padding: '12px 8px',
+              padding: '12px 6px',
               display: 'flex',
               flexDirection: 'column',
               gap: '4px',
@@ -445,7 +445,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
           </div>
 
           {/* Right Form Content Pane */}
-          <div style={{ flex: 1, minWidth: 0, padding: '22px 26px', overflowY: 'auto', backgroundColor: '#FFFFFF' }}>
+          <div style={{ flex: 1, minWidth: 0, padding: '16px 20px', overflowY: 'auto', overflowX: 'hidden', backgroundColor: '#FFFFFF' }}>
             {/* ================================================================ */}
             {/* 1. STAFF & TEAM SECTION */}
             {/* ================================================================ */}
@@ -744,16 +744,16 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                     No staff members registered. Click <b>"+ Add Staff Member"</b> to grant cashier access.
                   </div>
                 ) : (
-                  <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
-                    <table className="table" style={{ margin: 0, width: '100%', minWidth: '680px', borderCollapse: 'collapse' }}>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden', width: '100%' }}>
+                    <table className="table" style={{ margin: 0, width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
                       <thead style={{ backgroundColor: '#F8FAFC' }}>
                         <tr>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Employee</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Username</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Role</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Assigned Store</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Status</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'right', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap', minWidth: '180px' }}>Actions</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: '11px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Employee</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: '11px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Username</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: '11px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Role</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: '11px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Store Outlet</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: '11px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Status</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'right', fontSize: '11px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -763,19 +763,19 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                           const storeCat = st.business_category || (businesses?.find((b) => b.id === st.business_id)?.business_category) || '';
                           return (
                             <tr key={st.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
-                                <div style={{ fontWeight: 600, color: '#0F172A', fontSize: '12.5px' }}>{st.full_name}</div>
-                                {st.phone && <div style={{ fontSize: '11px', color: '#64748B' }}>Tel: {st.phone}</div>}
+                              <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                                <div style={{ fontWeight: 600, color: '#0F172A', fontSize: '12px' }}>{st.full_name}</div>
+                                {st.phone && <div style={{ fontSize: '10.5px', color: '#64748B' }}>Tel: {st.phone}</div>}
                               </td>
-                              <td style={{ padding: '9px 12px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#334155', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: '#334155', whiteSpace: 'nowrap' }}>
                                 @{st.username}
                               </td>
-                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
                                 <span
                                   style={{
-                                    fontSize: '11px',
+                                    fontSize: '10.5px',
                                     fontWeight: 600,
-                                    padding: '2px 8px',
+                                    padding: '2px 6px',
                                     borderRadius: '4px',
                                     whiteSpace: 'nowrap',
                                     display: 'inline-block',
@@ -786,20 +786,20 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                   {st.role === 'inventory_manager' ? 'Storekeeper' : 'Billing Cashier'}
                                 </span>
                               </td>
-                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#F8FAFC', padding: '2px 7px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#1E293B' }}>{storeName}</span>
+                              <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                                <div>
+                                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#1E293B' }}>{storeName}</div>
                                   {storeCat && (
-                                    <span style={{ fontSize: '9px', textTransform: 'capitalize', color: '#2563EB', fontWeight: 700 }}>({storeCat})</span>
+                                    <div style={{ fontSize: '9.5px', textTransform: 'capitalize', color: '#2563EB', fontWeight: 600 }}>{storeCat}</div>
                                   )}
                                 </div>
                               </td>
-                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
                                 <span
                                   style={{
-                                    fontSize: '10.5px',
+                                    fontSize: '10px',
                                     fontWeight: 700,
-                                    padding: '2px 6px',
+                                    padding: '2px 5px',
                                     borderRadius: '4px',
                                     whiteSpace: 'nowrap',
                                     display: 'inline-block',
@@ -810,27 +810,27 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                   {isActive ? 'Active' : 'Deactivated'}
                                 </span>
                               </td>
-                              <td style={{ padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '180px' }}>
-                                <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'inline-flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setResetTargetStaff(st);
                                       setNewStaffPassword('');
                                     }}
-                                    className="btn btn-ghost btn-sm"
-                                    style={{ fontSize: '11px', padding: '3px 8px', color: '#B45309', backgroundColor: '#FEF3C7', whiteSpace: 'nowrap' }}
-                                    title="Reset password directly"
+                                    className="btn btn-ghost btn-xs"
+                                    style={{ fontSize: '10.5px', padding: '3px 6px', color: '#B45309', backgroundColor: '#FEF3C7', whiteSpace: 'nowrap' }}
+                                    title="Reset staff password"
                                   >
-                                    Reset Password
+                                    Reset PW
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleToggleStatus(st.id, isActive, st.full_name)}
-                                    className="btn btn-ghost btn-sm"
+                                    className="btn btn-ghost btn-xs"
                                     style={{
-                                      fontSize: '11px',
-                                      padding: '3px 8px',
+                                      fontSize: '10.5px',
+                                      padding: '3px 6px',
                                       color: isActive ? '#DC2626' : '#16A34A',
                                       backgroundColor: isActive ? '#FEE2E2' : '#DCFCE7',
                                       whiteSpace: 'nowrap'
