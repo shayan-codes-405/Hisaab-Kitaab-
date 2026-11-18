@@ -3,6 +3,7 @@ import { useAuth, API_BASE } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { STATES_LIST, UT_LIST } from '../constants/states';
 import { PasswordInput } from '../components/PasswordInput';
+import { BrandLogo } from '../components/BrandLogo';
 
 export const BUSINESS_SECTORS = [
   { id: 'stationery', name: 'Books & Stationery', desc: 'Notebooks, pens, paper reams, office stationery' },
@@ -20,6 +21,7 @@ export const AuthView = () => {
   const { showToast } = useToast();
   const [mode, setMode] = useState('login'); // 'login', 'signup', or 'forgot'
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [welcomeUser, setWelcomeUser] = useState(null);
 
   // Blank initial forms
   const emptyLogin = {
@@ -72,7 +74,10 @@ export const AuthView = () => {
     const success = await login(loginForm.username, loginForm.password);
     setIsSubmitting(false);
     if (success) {
-      setLoginForm({ ...emptyLogin });
+      setWelcomeUser(loginForm.username);
+      setTimeout(() => {
+        setLoginForm({ ...emptyLogin });
+      }, 650);
     }
   };
 
@@ -207,26 +212,7 @@ export const AuthView = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <img
-              src="/logo.png"
-              alt="HisabKitab Logo"
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                boxShadow: '0 3px 10px rgba(0,0,0,0.3)',
-                backgroundColor: '#ffffff'
-              }}
-            />
-            <div>
-              <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
-                HisabKitab
-              </h2>
-              <p style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>
-                GST Invoicing & Inventory Ledger
-              </p>
-            </div>
+            <BrandLogo size={40} textColor="#FFFFFF" subtitle="Commercial Accounting & Inventory" />
           </div>
 
           {/* Toggle pill */}
@@ -741,6 +727,69 @@ export const AuthView = () => {
           )}
         </div>
       </div>
+
+      {/* Modern Login Welcome Transition Animation */}
+      {welcomeUser && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            transition: 'opacity 0.25s ease'
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              padding: '36px 40px',
+              textAlign: 'center',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
+              maxWidth: '380px',
+              width: '90%',
+              border: '1px solid #E2E8F0',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '12px'
+            }}
+          >
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #1E40AF 0%, #2563EB 55%, #3B82F6 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 8px 20px rgba(37, 99, 235, 0.3)'
+              }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+                Welcome to HisabKitab
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748B' }}>
+                Signed in as @{welcomeUser}. Opening workspace...
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2563EB' }} />
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#2563EB' }}>Ready for billing and inventory</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

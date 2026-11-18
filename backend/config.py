@@ -11,7 +11,7 @@ load_dotenv(dotenv_path=env_path)
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 DATABASE_NAME = os.getenv("DATABASE_NAME", "hisabkitab_db")
 SECRET_KEY = os.getenv("SECRET_KEY", "hisabkitab_super_secret_production_key_2026")
-TOKEN_EXPIRE_HOURS = int(os.getenv("TOKEN_EXPIRE_HOURS", "24"))
+TOKEN_EXPIRE_HOURS = int(os.getenv("TOKEN_EXPIRE_HOURS", "10"))
 
 # TextBee Android SMS Gateway Defaults
 TEXTBEE_API_URL = os.getenv("TEXTBEE_API_URL", "https://api.textbee.dev/api/v1").strip()

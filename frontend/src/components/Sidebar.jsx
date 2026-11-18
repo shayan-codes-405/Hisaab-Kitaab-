@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { BrandLogo } from './BrandLogo';
 
 export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed, mobileOpen = false, onCloseMobile }) => {
   const { user, business, logout, isAdmin } = useAuth();
@@ -92,29 +93,13 @@ export const Sidebar = ({ activeTab, setActiveTab, collapsed, setCollapsed, mobi
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
-            <img
-              src="/logo.png"
-              alt="HisabKitab Logo"
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                backgroundColor: '#ffffff',
-                flexShrink: 0
-              }}
+            <BrandLogo
+              size={36}
+              showText={!collapsed}
+              textColor="#FFFFFF"
+              subtitle="Billing & Ledger"
+              collapsed={collapsed}
             />
-            {!collapsed && (
-              <div>
-                <div style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '-0.02em', color: '#ffffff', fontFamily: 'var(--font-heading)' }}>
-                  HisabKitab
-                </div>
-                <div style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.65)', whiteSpace: 'nowrap' }}>
-                  Billing & Inventory
-                </div>
-              </div>
-            )}
           </div>
 
           {!collapsed && (

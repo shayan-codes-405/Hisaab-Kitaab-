@@ -28,6 +28,37 @@ ChartJS.register(
   Filler
 );
 
+// Smooth number counter animation for financial KPI numbers
+const AnimatedCurrency = ({ value, duration = 650 }) => {
+  const [displayVal, setDisplayVal] = useState(0);
+
+  useEffect(() => {
+    let startTimestamp = null;
+    const target = Number(value) || 0;
+    if (target === 0) {
+      setDisplayVal(0);
+      return;
+    }
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setDisplayVal(target * ease);
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    const req = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(req);
+  }, [value, duration]);
+
+  return (
+    <span>
+      ₹{displayVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </span>
+  );
+};
+
 export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => {
   const { apiFetch, dataVersion, business, businesses, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -385,112 +416,6 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
         </div>
       )}
 
-      {/* Executive Storytelling Summary Card */}
-      <div
-        style={{
-          backgroundColor: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: '10px',
-          padding: '16px 20px',
-          marginBottom: '20px',
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-forest)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Executive Business Story &amp; Digest
-            </div>
-            <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-              Plain-English operational breakdown — clear and readable for business owners and clerks without financial jargon.
-            </div>
-          </div>
-          <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#0F766E', backgroundColor: '#CCFBF1', padding: '3px 9px', borderRadius: '12px' }}>
-            Live Digest • {getRangeTitle()}
-          </span>
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
-            gap: '12px'
-          }}
-        >
-          {/* Story 1: Revenue & Cash Flow */}
-          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#166534', backgroundColor: '#DCFCE7', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                Money Flow
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Revenue &amp; Collections</span>
-            </div>
-            <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5 }}>
-              Generated <b>₹{kpi.total_sales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b> across <b>{kpi.total_invoices}</b> bill{kpi.total_invoices === 1 ? '' : 's'}. Settled <b>₹{kpi.total_paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b> in payments, with <b>₹{kpi.total_unpaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b> in customer udhar/credit.
-            </div>
-          </div>
-
-          {/* Story 2: Stock Health */}
-          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <span style={{
-                fontSize: '10px',
-                fontWeight: 800,
-                color: (kpi.low_stock_count > 0 || kpi.out_of_stock_count > 0) ? '#9A3412' : '#166534',
-                backgroundColor: (kpi.low_stock_count > 0 || kpi.out_of_stock_count > 0) ? '#FFEDD5' : '#DCFCE7',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                textTransform: 'uppercase'
-              }}>
-                {(kpi.low_stock_count > 0 || kpi.out_of_stock_count > 0) ? 'Action Required' : 'Stock Healthy'}
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Inventory Shelf Health</span>
-            </div>
-            <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5 }}>
-              {(kpi.low_stock_count > 0 || kpi.out_of_stock_count > 0) ? (
-                <span><b>{kpi.low_stock_count + kpi.out_of_stock_count} item(s)</b> are running low or out of stock. Prioritize reordering <b>"{low_stock_alerts?.[0]?.name || 'low stock items'}"</b>.</span>
-              ) : (
-                <span>All <b>{kpi.total_products} items</b> in store are well-stocked. Zero items currently below safety threshold.</span>
-              )}
-            </div>
-          </div>
-
-          {/* Story 3: Best Seller */}
-          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#1E40AF', backgroundColor: '#DBEAFE', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                Star Item
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Top Demand Driver</span>
-            </div>
-            <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5 }}>
-              {bestSeller ? (
-                <span>Most popular item is <b>"{bestSeller.name}"</b>, contributing <b>₹{bestSeller.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</b> to business revenue across <b>{bestSeller.qty}</b> units.</span>
-              ) : (
-                <span>Catalog is active with <b>{kpi.total_products} items</b>. Your fastest moving items will appear here as bills are created.</span>
-              )}
-            </div>
-          </div>
-
-          {/* Story 4: Counters */}
-          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#4C1D95', backgroundColor: '#EDE9FE', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                Counters
-              </span>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Cashier Performance</span>
-            </div>
-            <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5 }}>
-              {activeCashiers.length > 0 ? (
-                <span>{activeCashiers.map((c) => `${c.name}: ${c.invoice_count} bills (₹${c.total_sales.toLocaleString('en-IN', { minimumFractionDigits: 0 })})`).join(' • ')}.</span>
-              ) : (
-                <span>No counter activity in this date range. Cashiers are ready at counters.</span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* KPI Cards Grid (Dynamic to Selected Date Filter) */}
       <div
         style={{
@@ -506,7 +431,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
             Total Gross Sales
           </div>
           <div className="tabular-nums" style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-forest)', marginTop: '4px', fontFamily: 'var(--font-heading)' }}>
-            ₹{kpi.total_sales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <AnimatedCurrency value={kpi.total_sales} />
           </div>
           <div style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px' }}>
             Across {kpi.total_invoices} invoice{kpi.total_invoices === 1 ? '' : 's'} ({getRangeTitle()})
@@ -519,7 +444,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
             Received Payments
           </div>
           <div className="tabular-nums" style={{ fontSize: '24px', fontWeight: 800, color: 'var(--status-paid-text)', marginTop: '4px', fontFamily: 'var(--font-heading)' }}>
-            ₹{kpi.total_paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <AnimatedCurrency value={kpi.total_paid} />
           </div>
           <div style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px' }}>
             Settled collections ({getRangeTitle()})
@@ -532,7 +457,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
             Outstanding Balance
           </div>
           <div className="tabular-nums" style={{ fontSize: '24px', fontWeight: 800, color: 'var(--status-unpaid-text)', marginTop: '4px', fontFamily: 'var(--font-heading)' }}>
-            ₹{kpi.total_unpaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <AnimatedCurrency value={kpi.total_unpaid} />
           </div>
           <div style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px' }}>
             Pending collections ({getRangeTitle()})
@@ -545,7 +470,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
             Estimated Gross Profit
           </div>
           <div className="tabular-nums" style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-copper)', marginTop: '4px', fontFamily: 'var(--font-heading)' }}>
-            ₹{kpi.estimated_profit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <AnimatedCurrency value={kpi.estimated_profit} />
           </div>
           <div style={{ fontSize: '11.5px', color: 'var(--color-muted)', marginTop: '4px' }}>
             Taxable sales minus recorded purchase costs

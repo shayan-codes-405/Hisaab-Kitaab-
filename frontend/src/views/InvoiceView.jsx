@@ -2379,27 +2379,33 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
         <div id="print-tax-invoice" className="print-sheet-area">
           {/* Header with Business Details */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #243C32', paddingBottom: '12px', marginBottom: '16px' }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#243C32', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
-                {printInvoice.seller_snapshot?.business_name || business?.business_name || 'My Business'}
-              </h2>
-              <div style={{ fontSize: '11.5px', color: '#444444', marginTop: '3px' }}>
-                {printInvoice.seller_snapshot?.address || business?.address || 'Main Market Road'}
-              </div>
-              <div style={{ fontSize: '11px', color: '#444444' }}>
-                {(printInvoice.seller_snapshot?.gstin || business?.gstin) && (
-                  <span><b>GSTIN:</b> {printInvoice.seller_snapshot?.gstin || business?.gstin} • </span>
-                )}
-                <span><b>State:</b> {printInvoice.seller_snapshot?.state || business?.state || 'West Bengal'}</span>
-                {(printInvoice.seller_snapshot?.phone || business?.phone) && (
-                  <span> • <b>Tel:</b> {printInvoice.seller_snapshot?.phone || business?.phone}</span>
-                )}
-                {(printInvoice.seller_snapshot?.email || business?.email) && (
-                  <span> • <b>Email:</b> {printInvoice.seller_snapshot?.email || business?.email}</span>
-                )}
-              </div>
-              <div style={{ fontSize: '11px', color: '#444444' }}>
-                <b>State:</b> {printInvoice.seller_snapshot?.state || business?.state || 'Maharashtra'}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+              {business?.logo_data && (
+                <img
+                  src={business.logo_data}
+                  alt="Store Logo"
+                  style={{ maxHeight: '55px', maxWidth: '120px', objectFit: 'contain' }}
+                />
+              )}
+              <div>
+                <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#243C32', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+                  {printInvoice.seller_snapshot?.business_name || business?.business_name || 'My Business'}
+                </h2>
+                <div style={{ fontSize: '11.5px', color: '#444444', marginTop: '3px' }}>
+                  {printInvoice.seller_snapshot?.address || business?.address || 'Main Market Road'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#444444' }}>
+                  {(printInvoice.seller_snapshot?.gstin || business?.gstin) && (
+                    <span><b>GSTIN:</b> {printInvoice.seller_snapshot?.gstin || business?.gstin} • </span>
+                  )}
+                  <span><b>State:</b> {printInvoice.seller_snapshot?.state || business?.state || 'Maharashtra'}</span>
+                  {(printInvoice.seller_snapshot?.phone || business?.phone) && (
+                    <span> • <b>Tel:</b> {printInvoice.seller_snapshot?.phone || business?.phone}</span>
+                  )}
+                  {(printInvoice.seller_snapshot?.email || business?.email) && (
+                    <span> • <b>Email:</b> {printInvoice.seller_snapshot?.email || business?.email}</span>
+                  )}
+                </div>
               </div>
             </div>
 

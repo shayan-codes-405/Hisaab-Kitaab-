@@ -33,8 +33,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await fetch(url, { ...options, headers });
       if (response.status === 401) {
-        logout();
-        throw new Error('Session expired. Please log in again.');
+        logout(true); // Silent transition to login on token expiration
+        return response;
       }
       return response;
     } catch (err) {
@@ -127,13 +127,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = (silent = false) => {
     sessionStorage.removeItem('hisabkitab_token');
     localStorage.removeItem('hisabkitab_token');
     setToken(null);
     setUser(null);
     setBusiness(null);
-    showToast('Logged out securely.', 'info');
+    if (!silent) {
+      showToast('Logged out securely.', 'info');
+    }
   };
 
   const fetchBusinesses = async () => {

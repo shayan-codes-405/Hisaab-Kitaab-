@@ -38,6 +38,7 @@ class BusinessSettingsUpdate(BaseModel):
     bank_ifsc: str = ""
     upi_id: str = ""
     terms_conditions: str = ""
+    logo_data: Optional[str] = None
     # TextBee SMS settings
     textbee_api_url: Optional[str] = None
     textbee_api_key: Optional[str] = None
@@ -208,6 +209,7 @@ def update_business_settings(payload: BusinessSettingsUpdate, admin_user: dict =
         "upi_id": payload.upi_id.strip(),
         "terms_conditions": payload.terms_conditions.strip(),
         "business_category": (payload.business_category or "general").strip().lower(),
+        "logo_data": payload.logo_data if payload.logo_data is not None else existing.get("logo_data", ""),
         "updated_at": datetime.now(timezone.utc)
     }
 
