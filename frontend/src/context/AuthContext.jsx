@@ -257,7 +257,6 @@ export const AuthProvider = ({ children }) => {
         businesses,
         token,
         isAuthenticated: !!user,
-        isCheckingAuth,
         isAdmin: user?.role === 'admin',
         isStaff: user?.role === 'staff',
         isInventoryManager: user?.role === 'inventory_manager',
