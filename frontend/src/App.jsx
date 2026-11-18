@@ -11,7 +11,7 @@ import { InvoiceView } from './views/InvoiceView';
 import { InventoryView } from './views/InventoryView';
 
 const MainApplication = () => {
-  const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
+  const { isAuthenticated, isCheckingAuth, isLoading, isAdmin, user } = useAuth();
   const getDefaultTab = () => {
     if (isAdmin) return 'dashboard';
     if (user?.role === 'inventory_manager') return 'inventory';
@@ -41,6 +41,10 @@ const MainApplication = () => {
       }
     }
   }, [isLoading, isAuthenticated, isAdmin, user, activeTab]);
+
+  if (isCheckingAuth) {
+    return <div style={{ minHeight: '100vh', backgroundColor: 'var(--color-ivory)' }} />;
+  }
 
   if (!isAuthenticated) {
     return <AuthView />;

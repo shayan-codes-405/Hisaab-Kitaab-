@@ -1189,31 +1189,30 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       </div>
 
       {/* Invoice Ledger Table */}
-      <div className="ledger-table-container">
-        <table className="ledger-table">
+      <div className="ledger-table-container" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table className="ledger-table" style={{ width: '100%', minWidth: '920px' }}>
           <thead>
             <tr>
-              <th>Invoice No</th>
+              <th style={{ whiteSpace: 'nowrap' }}>Invoice No</th>
               <th>Customer</th>
-              {isAdmin && <th>Billed By</th>}
-              <th>Issue Date & Time</th>
-              <th>Supply State</th>
-              <th style={{ textAlign: 'right' }}>Taxable Value</th>
-              <th style={{ textAlign: 'right' }}>Total Amount</th>
-              <th style={{ textAlign: 'center' }}>Payment Status</th>
-              <th className="table-sticky-actions" style={{ textAlign: 'right', minWidth: '220px' }}>Quick Actions</th>
+              {isAdmin && <th style={{ whiteSpace: 'nowrap' }}>Billed By</th>}
+              <th style={{ whiteSpace: 'nowrap' }}>Date &amp; Time</th>
+              <th style={{ whiteSpace: 'nowrap' }}>Place of Supply</th>
+              <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Total Amount (₹)</th>
+              <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Payment Status</th>
+              <th className="table-sticky-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '220px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && invoices.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 9 : 8} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
+                <td colSpan={isAdmin ? 8 : 7} style={{ textAlign: 'center', padding: '40px', color: 'var(--color-muted)' }}>
                   Loading invoices from database...
                 </td>
               </tr>
             ) : invoices.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 9 : 8} style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--color-muted)' }}>
+                <td colSpan={isAdmin ? 8 : 7} style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--color-muted)' }}>
                   <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-forest)', marginBottom: '6px' }}>
                     {isAdmin ? 'No Invoices Generated Yet' : 'No Invoices Issued by You Yet'}
                   </div>
@@ -1230,19 +1229,21 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
             ) : (
               invoices.map((inv) => (
                 <tr key={inv.id}>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-forest)' }}>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-forest)', whiteSpace: 'nowrap' }}>
                     {inv.invoice_number}
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{inv.customer?.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--color-charcoal)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {inv.customer?.name}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>
                       {inv.customer?.phone && <span>{inv.customer.phone} • </span>}
                       {inv.customer?.gstin ? <span>GSTIN: {inv.customer.gstin}</span> : <span>Unregistered</span>}
                     </div>
                   </td>
                   {/* Billed By column strictly rendered for Store Owner / Admin */}
                   {isAdmin && (
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       <div style={{ fontWeight: 600, color: 'var(--color-forest)', fontSize: '12.5px' }}>
                         {inv.staff_name || (inv.created_by === 'admin' ? (business?.business_name || 'Store Owner') : inv.created_by || 'Staff')}
                       </div>
@@ -1257,21 +1258,23 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                     <div style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{inv.invoice_date}</div>
                     <div style={{ fontSize: '11px', color: 'var(--color-muted)' }}>{inv.invoice_time || '—'}</div>
                   </td>
-                  <td>
-                    <span style={{ fontSize: '11.5px', fontWeight: 500 }}>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--color-charcoal)' }}>
                       {inv.customer?.state || 'Local'}
-                      <div style={{ fontSize: '10px', color: 'var(--color-muted)' }}>
-                        {inv.is_interstate ? 'IGST (Inter-State)' : 'CGST+SGST (Intra-State)'}
-                      </div>
-                    </span>
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--color-muted)' }}>
+                      {inv.is_interstate ? 'IGST (Inter-State)' : 'CGST+SGST (Intra-State)'}
+                    </div>
                   </td>
-                  <td className="tabular-nums" style={{ textAlign: 'right' }}>
-                    ₹{inv.total_net_taxable.toFixed(2)}
+                  <td className="tabular-nums" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--color-forest)', fontSize: '13.5px' }}>
+                      ₹{inv.final_payable_amount.toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: 'var(--color-muted)' }}>
+                      Taxable: ₹{inv.total_net_taxable.toFixed(2)}
+                    </div>
                   </td>
-                  <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 800, color: 'var(--color-forest)' }}>
-                    ₹{inv.final_payable_amount.toFixed(2)}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
+                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <select
                       className={`status-pill ${
                         inv.payment_status === 'Paid'
@@ -1282,7 +1285,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       }`}
                       value={inv.payment_status}
                       onChange={(e) => handleUpdatePaymentStatus(inv.id, e.target.value)}
-                      style={{ cursor: 'pointer', outline: 'none' }}
+                      style={{ cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap', padding: '3px 8px' }}
                     >
                       <option value="Paid">Paid</option>
                       <option value="Unpaid">Unpaid</option>
@@ -1290,10 +1293,11 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                     </select>
                   </td>
                   <td className="table-sticky-actions" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                       <button
                         onClick={() => handleDownloadPDF(inv)}
                         className="btn btn-copper btn-xs"
+                        style={{ padding: '2px 5px', fontSize: '11px', whiteSpace: 'nowrap' }}
                         title="Download Printable PDF"
                       >
                         PDF
@@ -1301,6 +1305,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       <button
                         onClick={() => handlePrint(inv)}
                         className="btn btn-secondary btn-xs"
+                        style={{ padding: '2px 5px', fontSize: '11px', whiteSpace: 'nowrap' }}
                         title="Print Tax Invoice / Receipt"
                       >
                         Print
@@ -1308,6 +1313,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       <button
                         onClick={() => openSMSModalFor(inv)}
                         className="btn btn-secondary btn-xs"
+                        style={{ padding: '2px 5px', fontSize: '11px', whiteSpace: 'nowrap' }}
                         title="Send TextBee SMS"
                       >
                         SMS
@@ -1315,6 +1321,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       <button
                         onClick={() => handleOpenEdit(inv)}
                         className="btn btn-secondary btn-xs"
+                        style={{ padding: '2px 5px', fontSize: '11px', whiteSpace: 'nowrap' }}
                         title="Edit Invoice"
                       >
                         Edit
@@ -1322,6 +1329,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                       <button
                         onClick={() => setSelectedInvoice(inv)}
                         className="btn btn-ghost btn-xs"
+                        style={{ padding: '2px 5px', fontSize: '11px', whiteSpace: 'nowrap' }}
                         title="View Details"
                       >
                         View
@@ -1330,7 +1338,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                         <button
                           onClick={() => handleDeleteInvoice(inv)}
                           className="btn btn-danger-subtle btn-xs"
-                          style={{ fontWeight: 700 }}
+                          style={{ padding: '2px 5px', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}
                           title="Admin only: Delete Invoice and Return Stock"
                         >
                           Delete

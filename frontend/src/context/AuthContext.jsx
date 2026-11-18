@@ -12,6 +12,10 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(() => {
     return sessionStorage.getItem('hisabkitab_token') || localStorage.getItem('hisabkitab_token');
   });
+  const [isCheckingAuth, setIsCheckingAuth] = useState(() => {
+    const saved = sessionStorage.getItem('hisabkitab_token') || localStorage.getItem('hisabkitab_token');
+    return !!saved;
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   const { showToast } = useToast();
@@ -42,7 +46,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const savedToken = sessionStorage.getItem('hisabkitab_token') || localStorage.getItem('hisabkitab_token');
     if (!savedToken) {
-      setIsLoading(false);
+      setIsCheckingAuth(false);
       return;
     }
 
@@ -72,7 +76,7 @@ export const AuthProvider = ({ children }) => {
         console.warn('Initial session check skipped / offline:', err);
       })
       .finally(() => {
-        setIsLoading(false);
+        setIsCheckingAuth(false);
       });
   }, []);
 
@@ -219,6 +223,7 @@ export const AuthProvider = ({ children }) => {
         businesses,
         token,
         isAuthenticated: !!user,
+        isCheckingAuth,
         isAdmin: user?.role === 'admin',
         isStaff: user?.role === 'staff',
         isInventoryManager: user?.role === 'inventory_manager',
