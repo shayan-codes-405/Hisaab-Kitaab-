@@ -6,15 +6,25 @@ const AuthContext = createContext(null);
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [business, setBusiness] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('hisabkitab_user') || localStorage.getItem('hisabkitab_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [business, setBusiness] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('hisabkitab_business') || localStorage.getItem('hisabkitab_business');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [businesses, setBusinesses] = useState([]);
   const [token, setToken] = useState(() => {
     return sessionStorage.getItem('hisabkitab_token') || localStorage.getItem('hisabkitab_token');
-  });
-  const [isCheckingAuth, setIsCheckingAuth] = useState(() => {
-    const saved = sessionStorage.getItem('hisabkitab_token') || localStorage.getItem('hisabkitab_token');
-    return !!saved;
   });
   const [isLoading, setIsLoading] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
@@ -42,11 +52,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Background token verification ONLY on initial page mount (never blocks user interaction)
+  // Background token verification on initial page mount (silent token refresh, zero UI flash)
   useEffect(() => {
     const savedToken = sessionStorage.getItem('hisabkitab_token') || localStorage.getItem('hisabkitab_token');
     if (!savedToken) {
-      setIsCheckingAuth(false);
       return;
     }
 
@@ -65,18 +74,27 @@ export const AuthProvider = ({ children }) => {
           setBusiness(data.business);
           setBusinesses(data.businesses || []);
           setToken(savedToken);
+          try {
+            sessionStorage.setItem('hisabkitab_user', JSON.stringify(data.user));
+            localStorage.setItem('hisabkitab_user', JSON.stringify(data.user));
+            if (data.business) {
+              sessionStorage.setItem('hisabkitab_business', JSON.stringify(data.business));
+              localStorage.setItem('hisabkitab_business', JSON.stringify(data.business));
+            }
+          } catch (e) {}
         } else {
           sessionStorage.removeItem('hisabkitab_token');
           localStorage.removeItem('hisabkitab_token');
+          sessionStorage.removeItem('hisabkitab_user');
+          localStorage.removeItem('hisabkitab_user');
+          sessionStorage.removeItem('hisabkitab_business');
+          localStorage.removeItem('hisabkitab_business');
           setToken(null);
           setUser(null);
         }
       })
       .catch((err) => {
         console.warn('Initial session check skipped / offline:', err);
-      })
-      .finally(() => {
-        setIsCheckingAuth(false);
       });
   }, []);
 
@@ -93,6 +111,12 @@ export const AuthProvider = ({ children }) => {
       }
       sessionStorage.setItem('hisabkitab_token', data.token);
       localStorage.setItem('hisabkitab_token', data.token);
+      sessionStorage.setItem('hisabkitab_user', JSON.stringify(data.user));
+      localStorage.setItem('hisabkitab_user', JSON.stringify(data.user));
+      if (data.business) {
+        sessionStorage.setItem('hisabkitab_business', JSON.stringify(data.business));
+        localStorage.setItem('hisabkitab_business', JSON.stringify(data.business));
+      }
       setToken(data.token);
       setUser(data.user);
       if (data.business) {
@@ -120,6 +144,12 @@ export const AuthProvider = ({ children }) => {
       }
       sessionStorage.setItem('hisabkitab_token', data.token);
       localStorage.setItem('hisabkitab_token', data.token);
+      sessionStorage.setItem('hisabkitab_user', JSON.stringify(data.user));
+      localStorage.setItem('hisabkitab_user', JSON.stringify(data.user));
+      if (data.business) {
+        sessionStorage.setItem('hisabkitab_business', JSON.stringify(data.business));
+        localStorage.setItem('hisabkitab_business', JSON.stringify(data.business));
+      }
       setToken(data.token);
       setUser(data.user);
       if (data.business) {
@@ -137,6 +167,10 @@ export const AuthProvider = ({ children }) => {
   const logout = (silent = false) => {
     sessionStorage.removeItem('hisabkitab_token');
     localStorage.removeItem('hisabkitab_token');
+    sessionStorage.removeItem('hisabkitab_user');
+    localStorage.removeItem('hisabkitab_user');
+    sessionStorage.removeItem('hisabkitab_business');
+    localStorage.removeItem('hisabkitab_business');
     setToken(null);
     setUser(null);
     setBusiness(null);
