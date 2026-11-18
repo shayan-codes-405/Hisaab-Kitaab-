@@ -65,14 +65,21 @@
   padding: 0;
 }
 
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--color-ivory);
+}
+
 body {
   font-family: var(--font-body);
-  background-color: var(--color-ivory);
   color: var(--color-charcoal);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  min-height: 100vh;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -90,30 +97,32 @@ h1, h2, h3, h4, h5, h6 {
 /* Layout Architecture */
 .app-layout {
   display: flex;
-  min-height: 100vh;
-  width: 100%;
+  height: 100vh;
+  width: 100vw;
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .app-main {
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: 100vh;
   min-width: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: hidden;
   background-color: var(--color-ivory);
 }
 
 .content-viewport {
   flex: 1;
-  padding: 24px 32px;
+  padding: 20px 28px;
   overflow-y: auto;
   overflow-x: hidden;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 768px) {
@@ -708,15 +717,14 @@ thead th.table-sticky-actions {
    ========================================================================== */
 
 .app-header {
+  flex-shrink: 0;
   background-color: #ffffff;
   border-bottom: 1px solid var(--color-stone);
-  padding: 12px 28px;
+  padding: 10px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  position: sticky;
-  top: 0;
   z-index: 90;
   gap: 12px;
 }

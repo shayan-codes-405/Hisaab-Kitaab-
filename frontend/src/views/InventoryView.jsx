@@ -1194,7 +1194,7 @@ export const InventoryView = () => {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{p.name}</span>
-                        {p.industry_sector && p.industry_sector !== 'general' && (
+                        {p.industry_sector && p.industry_sector !== 'general' && p.industry_sector !== p.category?.toLowerCase() && (
                           <span style={{
                             fontSize: '9.5px',
                             fontWeight: 700,
