@@ -479,16 +479,9 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
       </div>
 
       {/* Analytics Charts Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gap: '20px',
-          marginBottom: '24px'
-        }}
-      >
+      <div className="dashboard-grid-2-1">
         {/* Dynamic Revenue Trend Chart */}
-        <div className="ledger-card" style={{ marginBottom: 0 }}>
+        <div className="ledger-card" style={{ marginBottom: 0, minWidth: 0, overflow: 'hidden' }}>
           <div className="card-header">
             <div>
               <div className="card-title">Revenue Trend: {getRangeTitle()}</div>
@@ -498,18 +491,18 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
               Live Dynamic Chart
             </span>
           </div>
-          <div style={{ height: '230px' }}>
+          <div style={{ height: '230px', position: 'relative', width: '100%', minWidth: 0 }}>
             <Bar data={barChartData} options={barChartOptions} />
           </div>
         </div>
 
         {/* Payment Split */}
-        <div className="ledger-card" style={{ marginBottom: 0 }}>
+        <div className="ledger-card" style={{ marginBottom: 0, minWidth: 0, overflow: 'hidden' }}>
           <div className="card-header">
             <div className="card-title">Payment Realization</div>
             <span style={{ fontSize: '11px', color: 'var(--color-muted)' }}>{kpi.total_invoices} Invoices</span>
           </div>
-          <div style={{ height: '230px', position: 'relative' }}>
+          <div style={{ height: '230px', position: 'relative', width: '100%', minWidth: 0 }}>
             <Doughnut data={doughnutData} options={doughnutOptions} />
           </div>
         </div>
@@ -518,15 +511,15 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
       {/* ========================================================================= */}
       {/* STAFF SALES & PRODUCT PERFORMANCE BREAKDOWN                                */}
       {/* ========================================================================= */}
-      <div className="ledger-card" style={{ marginBottom: '24px' }}>
+      <div className="ledger-card" style={{ marginBottom: '24px', minWidth: 0, overflow: 'hidden' }}>
         <div className="card-header">
           <div>
-            <div className="card-title">Staff Sales & Product Performance</div>
+            <div className="card-title">Staff Sales &amp; Product Performance</div>
             <div style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
               Detailed sales volume, bills created, and top products sold by each staff member for {getRangeTitle()}.
             </div>
           </div>
-          <span style={{ fontSize: '12px', color: 'var(--color-forest)', fontWeight: 600 }}>
+          <span style={{ fontSize: '12px', color: 'var(--color-forest)', fontWeight: 600, whiteSpace: 'nowrap' }}>
             {staff_performance?.length || 0} Active Seller{staff_performance?.length === 1 ? '' : 's'}
           </span>
         </div>
@@ -536,34 +529,36 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
             No employee sales recorded for {getRangeTitle()}. Select a wider date range to see staff sales records.
           </div>
         ) : (
-          <div className="ledger-table-container" style={{ border: 'none', boxShadow: 'none' }}>
-            <table className="ledger-table">
+          <div className="ledger-table-container" style={{ border: 'none', boxShadow: 'none', width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table className="ledger-table" style={{ width: '100%', minWidth: '720px' }}>
               <thead>
                 <tr>
-                  <th>Staff Member</th>
-                  <th>Role</th>
-                  <th style={{ textAlign: 'center' }}>Invoices Created</th>
-                  <th style={{ textAlign: 'center' }}>Units Sold</th>
-                  <th style={{ textAlign: 'right' }}>Total Revenue Generated</th>
-                  <th>Top Products Sold by this Staff</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Staff Member</th>
+                  <th style={{ whiteSpace: 'nowrap' }}>Role</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Invoices Created</th>
+                  <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Units Sold</th>
+                  <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Total Revenue Generated</th>
+                  <th style={{ minWidth: '220px', maxWidth: '380px' }}>Top Products Sold by this Staff</th>
                 </tr>
               </thead>
               <tbody>
                 {staff_performance.map((st) => (
                   <tr key={st.username}>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       <div style={{ fontWeight: 700, color: 'var(--color-forest)' }}>{st.name}</div>
                       <div style={{ fontSize: '11px', color: 'var(--color-muted)', fontFamily: 'var(--font-mono)' }}>
                         @{st.username}
                       </div>
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       <span
                         style={{
                           fontSize: '11px',
                           fontWeight: 600,
                           padding: '2px 8px',
                           borderRadius: '4px',
+                          whiteSpace: 'nowrap',
+                          display: 'inline-block',
                           backgroundColor: st.role === 'admin' ? '#FEF3C7' : st.role === 'inventory_manager' ? '#FEE2E2' : '#E0E7FF',
                           color: st.role === 'admin' ? '#92400E' : st.role === 'inventory_manager' ? '#991B1B' : '#3730A3'
                         }}
@@ -571,28 +566,34 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
                         {st.role === 'admin' ? 'Owner / Admin' : st.role === 'inventory_manager' ? 'Storekeeper' : 'Billing Cashier'}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                    <td style={{ textAlign: 'center', fontWeight: 700, whiteSpace: 'nowrap' }}>
                       {st.invoice_count} bill{st.invoice_count === 1 ? '' : 's'}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--color-charcoal)' }}>
+                    <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--color-charcoal)', whiteSpace: 'nowrap' }}>
                       {st.total_items_sold} item{st.total_items_sold === 1 ? '' : 's'}
                     </td>
-                    <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 800, color: 'var(--color-forest)' }}>
+                    <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: 800, color: 'var(--color-forest)', whiteSpace: 'nowrap' }}>
                       ₹{st.total_sales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
-                    <td>
+                    <td style={{ maxWidth: '380px' }}>
                       {st.top_products && st.top_products.length > 0 ? (
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                           {st.top_products.map((tp, idx) => (
                             <span
                               key={idx}
+                              title={`${tp.product_name} (${tp.quantity} sold • ₹${tp.revenue})`}
                               style={{
                                 fontSize: '11px',
                                 backgroundColor: '#F1EFE9',
                                 border: '1px solid var(--color-stone)',
                                 borderRadius: '4px',
                                 padding: '2px 8px',
-                                color: 'var(--color-charcoal)'
+                                color: 'var(--color-charcoal)',
+                                maxWidth: '240px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                display: 'inline-block'
                               }}
                             >
                               <b>{tp.product_name}</b> ({tp.quantity} sold • ₹{tp.revenue})
@@ -612,15 +613,9 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
       </div>
 
       {/* Bottom Section: Recent Invoices Ledger & Low Stock Warning */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gap: '20px'
-        }}
-      >
+      <div className="dashboard-grid-2-1">
         {/* Recent Invoices Table */}
-        <div className="ledger-card" style={{ marginBottom: 0 }}>
+        <div className="ledger-card" style={{ marginBottom: 0, minWidth: 0, overflow: 'hidden' }}>
           <div className="card-header">
             <div className="card-title">Recent Invoices ({getRangeTitle()})</div>
             <button onClick={onNewInvoice} className="btn btn-ghost btn-sm">
@@ -633,8 +628,8 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
               No invoices found for {getRangeTitle()}.
             </div>
           ) : (
-            <div className="ledger-table-container" style={{ border: 'none', boxShadow: 'none' }}>
-              <table className="ledger-table">
+            <div className="ledger-table-container" style={{ border: 'none', boxShadow: 'none', width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table className="ledger-table" style={{ width: '100%', minWidth: '540px' }}>
                 <thead>
                   <tr>
                     <th>Invoice No</th>
@@ -688,7 +683,7 @@ export const DashboardView = ({ onNewInvoice, onNewProduct, onViewInvoice }) => 
         </div>
 
         {/* Low Stock Alerts */}
-        <div className="ledger-card" style={{ marginBottom: 0 }}>
+        <div className="ledger-card" style={{ marginBottom: 0, minWidth: 0, overflow: 'hidden' }}>
           <div className="card-header">
             <div className="card-title">Inventory Alerts</div>
             <button onClick={onNewProduct} className="btn btn-ghost btn-sm">

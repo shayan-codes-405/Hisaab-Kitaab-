@@ -342,9 +342,10 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
       <div
         className="modal-sheet modal-sheet-lg"
         style={{
-          maxWidth: '880px',
+          maxWidth: '960px',
           width: '95%',
-          height: '84vh',
+          maxHeight: '88vh',
+          height: 'auto',
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: '#FFFFFF',
@@ -371,7 +372,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
               Settings &amp; Administration
             </h3>
             <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>
-              {business?.business_name || 'My Store'} • Platform Management Console
+              HisabKitab Platform Console • {business?.business_name || 'My Store'}
             </p>
           </div>
           <button
@@ -393,7 +394,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Master-Detail Split Pane Body */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flex: 1, minHeight: '380px', maxHeight: 'calc(88vh - 120px)', overflow: 'hidden' }}>
           {/* Left Category Navigation Rail */}
           <div
             style={{
@@ -444,7 +445,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
           </div>
 
           {/* Right Form Content Pane */}
-          <div style={{ flex: 1, padding: '22px 26px', overflowY: 'auto', backgroundColor: '#FFFFFF' }}>
+          <div style={{ flex: 1, minWidth: 0, padding: '22px 26px', overflowY: 'auto', backgroundColor: '#FFFFFF' }}>
             {/* ================================================================ */}
             {/* 1. STAFF & TEAM SECTION */}
             {/* ================================================================ */}
@@ -743,16 +744,16 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                     No staff members registered. Click <b>"+ Add Staff Member"</b> to grant cashier access.
                   </div>
                 ) : (
-                  <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden' }}>
-                    <table className="table" style={{ margin: 0, width: '100%', borderCollapse: 'collapse' }}>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
+                    <table className="table" style={{ margin: 0, width: '100%', minWidth: '680px', borderCollapse: 'collapse' }}>
                       <thead style={{ backgroundColor: '#F8FAFC' }}>
                         <tr>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700 }}>Employee</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700 }}>Username</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700 }}>Role</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700 }}>Assigned Store</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700 }}>Status</th>
-                          <th style={{ padding: '9px 12px', textAlign: 'right', fontSize: '11.5px', color: '#0F172A', fontWeight: 700 }}>Actions</th>
+                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Employee</th>
+                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Username</th>
+                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Role</th>
+                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Assigned Store</th>
+                          <th style={{ padding: '9px 12px', textAlign: 'left', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap' }}>Status</th>
+                          <th style={{ padding: '9px 12px', textAlign: 'right', fontSize: '11.5px', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap', minWidth: '180px' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -762,20 +763,22 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                           const storeCat = st.business_category || (businesses?.find((b) => b.id === st.business_id)?.business_category) || '';
                           return (
                             <tr key={st.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                              <td style={{ padding: '9px 12px' }}>
+                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
                                 <div style={{ fontWeight: 600, color: '#0F172A', fontSize: '12.5px' }}>{st.full_name}</div>
                                 {st.phone && <div style={{ fontSize: '11px', color: '#64748B' }}>Tel: {st.phone}</div>}
                               </td>
-                              <td style={{ padding: '9px 12px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#334155' }}>
+                              <td style={{ padding: '9px 12px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#334155', whiteSpace: 'nowrap' }}>
                                 @{st.username}
                               </td>
-                              <td style={{ padding: '9px 12px' }}>
+                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
                                 <span
                                   style={{
                                     fontSize: '11px',
                                     fontWeight: 600,
-                                    padding: '2px 7px',
+                                    padding: '2px 8px',
                                     borderRadius: '4px',
+                                    whiteSpace: 'nowrap',
+                                    display: 'inline-block',
                                     backgroundColor: st.role === 'inventory_manager' ? '#FEF3C7' : '#EFF6FF',
                                     color: st.role === 'inventory_manager' ? '#92400E' : '#1D4ED8'
                                   }}
@@ -783,7 +786,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                   {st.role === 'inventory_manager' ? 'Storekeeper' : 'Billing Cashier'}
                                 </span>
                               </td>
-                              <td style={{ padding: '9px 12px' }}>
+                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#F8FAFC', padding: '2px 7px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
                                   <span style={{ fontSize: '11px', fontWeight: 600, color: '#1E293B' }}>{storeName}</span>
                                   {storeCat && (
@@ -791,13 +794,15 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                   )}
                                 </div>
                               </td>
-                              <td style={{ padding: '9px 12px' }}>
+                              <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
                                 <span
                                   style={{
                                     fontSize: '10.5px',
                                     fontWeight: 700,
                                     padding: '2px 6px',
                                     borderRadius: '4px',
+                                    whiteSpace: 'nowrap',
+                                    display: 'inline-block',
                                     backgroundColor: isActive ? '#DCFCE7' : '#FEE2E2',
                                     color: isActive ? '#15803D' : '#B91C1C'
                                   }}
@@ -805,8 +810,8 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                   {isActive ? 'Active' : 'Deactivated'}
                                 </span>
                               </td>
-                              <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                                <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <td style={{ padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '180px' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -814,7 +819,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                       setNewStaffPassword('');
                                     }}
                                     className="btn btn-ghost btn-sm"
-                                    style={{ fontSize: '11px', padding: '2px 7px', color: '#B45309', backgroundColor: '#FEF3C7' }}
+                                    style={{ fontSize: '11px', padding: '3px 8px', color: '#B45309', backgroundColor: '#FEF3C7', whiteSpace: 'nowrap' }}
                                     title="Reset password directly"
                                   >
                                     Reset Password
@@ -825,9 +830,10 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                     className="btn btn-ghost btn-sm"
                                     style={{
                                       fontSize: '11px',
-                                      padding: '2px 7px',
+                                      padding: '3px 8px',
                                       color: isActive ? '#DC2626' : '#16A34A',
-                                      backgroundColor: isActive ? '#FEE2E2' : '#DCFCE7'
+                                      backgroundColor: isActive ? '#FEE2E2' : '#DCFCE7',
+                                      whiteSpace: 'nowrap'
                                     }}
                                   >
                                     {isActive ? 'Deactivate' : 'Activate'}
@@ -1164,7 +1170,7 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
           }}
         >
           <div style={{ fontSize: '12px', color: '#64748B' }}>
-            Store Context: <b style={{ color: '#0F172A' }}>{business?.business_name || 'My Store'}</b>
+            Active Store: <b style={{ color: '#0F172A' }}>{business?.business_name || 'My Store'}</b>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button type="button" onClick={onClose} className="btn btn-secondary btn-sm">

@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { BrandLogo } from './components/BrandLogo';
 import { AdminManagementModal } from './components/AdminManagementModal';
 import { AuthView } from './views/AuthView';
 import { DashboardView } from './views/DashboardView';
@@ -46,35 +47,42 @@ const MainApplication = () => {
       <div
         style={{
           minHeight: '100vh',
-          backgroundColor: 'var(--color-ivory)',
+          backgroundColor: '#0F172A',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          color: 'var(--color-forest)',
-          fontFamily: 'var(--font-heading)',
-          fontSize: '16px',
-          fontWeight: 700
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          userSelect: 'none'
         }}
       >
-        <div style={{ textAlign: 'center' }}>
-          <div
-            style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '8px',
-              backgroundColor: 'var(--color-forest)',
-              color: '#ffffff',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '20px',
-              marginBottom: '12px'
-            }}
-          >
-            HK
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '18px',
+            animation: 'fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+        >
+          <BrandLogo size={52} textColor="#FFFFFF" subtitle="Cloud Ledger &amp; POS" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
+            <div
+              style={{
+                width: '16px',
+                height: '16px',
+                border: '2px solid rgba(255, 255, 255, 0.15)',
+                borderTopColor: '#3B82F6',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite'
+              }}
+            />
+            <span style={{ fontSize: '13px', color: '#94A3B8', fontWeight: 500, letterSpacing: '0.01em' }}>
+              Preparing your workspace...
+            </span>
           </div>
-          <div>Connecting to HisabKitab Ledger...</div>
         </div>
       </div>
     );
