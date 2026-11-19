@@ -14,7 +14,7 @@ export const SECTORS = [
 ];
 
 export const InventoryView = () => {
-  const { apiFetch, isAdmin, user, business, dataVersion, refreshData } = useAuth();
+  const { apiFetch, isAdmin, user, business, dataVersion, refreshData, businesses } = useAuth();
   const { showToast } = useToast();
 
   const [products, setProducts] = useState([]);
@@ -31,6 +31,7 @@ export const InventoryView = () => {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [storeFilter, setStoreFilter] = useState('current');
 
   // Modals
   const [showProductModal, setShowProductModal] = useState(false);
@@ -169,6 +170,9 @@ export const InventoryView = () => {
       if (search) params.append('search', search);
       if (categoryFilter !== 'All') params.append('category', categoryFilter);
       if (statusFilter !== 'all') params.append('status_filter', statusFilter);
+      if (isAdmin && storeFilter && storeFilter !== 'current') {
+        params.append('store_id', storeFilter);
+      }
 
       const res = await apiFetch(`/api/inventory?${params.toString()}`);
       if (res.ok) {
@@ -200,7 +204,7 @@ export const InventoryView = () => {
     loadInwardAlerts();
     loadVendorClaims('all');
     loadPromotionalGifts('all');
-  }, [categoryFilter, statusFilter, dataVersion]);
+  }, [categoryFilter, statusFilter, storeFilter, dataVersion, business?.id]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -1027,6 +1031,25 @@ export const InventoryView = () => {
 
           {/* Category & Status Dropdowns */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Store Outlet Scope Filter (Admin Multi-Store) */}
+            {isAdmin && businesses && businesses.length > 1 && (
+              <select
+                className="form-select"
+                value={storeFilter}
+                onChange={(e) => setStoreFilter(e.target.value)}
+                style={{ width: 'auto', fontWeight: 600, color: '#1E293B', borderColor: '#CBD5E1' }}
+                title="Filter products by specific outlet or view all outlets consolidated"
+              >
+                <option value="current">{business?.business_name || 'Active Store'} (Current)</option>
+                <option value="all">All Outlets (All-in-One)</option>
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.business_name} ({b.business_category || 'general'})
+                  </option>
+                ))}
+              </select>
+            )}
+
             <select
               className="form-select"
               value={categoryFilter}
@@ -1190,6 +1213,19 @@ export const InventoryView = () => {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 600, color: 'var(--color-charcoal)' }}>{p.name}</span>
+                        {isAdmin && businesses && businesses.length > 1 && p.business_id && (
+                          <span style={{
+                            fontSize: '9.5px',
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            backgroundColor: '#F8FAFC',
+                            color: '#475569',
+                            border: '1px solid #CBD5E1'
+                          }}>
+                            {businesses.find((b) => b.id === p.business_id)?.business_name || 'Outlet'}
+                          </span>
+                        )}
                         {p.industry_sector && p.industry_sector !== 'general' && p.industry_sector !== p.category?.toLowerCase() && (
                           <span style={{
                             fontSize: '9.5px',

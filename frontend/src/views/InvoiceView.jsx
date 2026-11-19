@@ -248,7 +248,7 @@ export const printInvoiceViaIframe = (inv, seller) => {
 };
 
 export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onClearViewInvoiceId, autoOpenCreator = false, onResetAutoOpen = null }) => {
-  const { apiFetch, business, refreshBusiness, isAdmin, user, dataVersion, refreshData } = useAuth();
+  const { apiFetch, business, refreshBusiness, isAdmin, user, dataVersion, refreshData, businesses } = useAuth();
   const { showToast } = useToast();
 
   const [invoices, setInvoices] = useState([]);
@@ -260,6 +260,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [staffFilter, setStaffFilter] = useState('all');
+  const [storeFilter, setStoreFilter] = useState('current');
 
   // Modals & Panels
   const [showCreatorModal, setShowCreatorModal] = useState(false);
@@ -365,6 +366,9 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       if (search) params.append('search', search);
       if (statusFilter !== 'all') params.append('payment_status', statusFilter);
       if (isAdmin && staffFilter !== 'all') params.append('staff', staffFilter);
+      if (isAdmin && storeFilter && storeFilter !== 'current') {
+        params.append('store_id', storeFilter);
+      }
       const res = await apiFetch(`/api/invoices?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -421,7 +425,7 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     loadProducts();
     loadStaffMembers();
     loadActiveSchemes();
-  }, [statusFilter, staffFilter, dataVersion]);
+  }, [statusFilter, staffFilter, storeFilter, dataVersion, business?.id]);
 
   useEffect(() => {
     if (viewInvoiceId) {
@@ -1152,6 +1156,25 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
           {/* Status & Staff Filters & Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             {/* Staff Filter is strictly visible to Admin only */}
+            {/* Store Outlet Scope Filter (Admin Multi-Store) */}
+            {isAdmin && businesses && businesses.length > 1 && (
+              <select
+                className="form-select"
+                value={storeFilter}
+                onChange={(e) => setStoreFilter(e.target.value)}
+                style={{ width: 'auto', fontWeight: 600, color: '#1E293B', borderColor: '#CBD5E1' }}
+                title="Filter invoices by specific outlet or view all outlets consolidated"
+              >
+                <option value="current">{business?.business_name || 'Active Store'} (Current)</option>
+                <option value="all">All Outlets (All-in-One)</option>
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.business_name} ({b.business_category || 'general'})
+                  </option>
+                ))}
+              </select>
+            )}
+
             {isAdmin && (
               <select
                 className="form-select"
@@ -1247,6 +1270,11 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
                     >
                       {inv.invoice_number}
                     </button>
+                    {isAdmin && businesses && businesses.length > 1 && inv.seller_snapshot?.business_name && (
+                      <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 600, marginTop: '2px', whiteSpace: 'nowrap' }}>
+                        {inv.seller_snapshot.business_name}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <div style={{ fontWeight: 600, color: 'var(--color-charcoal)', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
