@@ -235,6 +235,38 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const deleteBusiness = async (businessId) => {
+    try {
+      const res = await apiFetch(`/api/settings/businesses/${businessId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to delete store');
+
+      showToast(data.message || 'Store outlet removed successfully.', 'success');
+      if (data.user) {
+        setUser(data.user);
+        try {
+          sessionStorage.setItem('hisabkitab_user', JSON.stringify(data.user));
+          localStorage.setItem('hisabkitab_user', JSON.stringify(data.user));
+        } catch (e) {}
+      }
+      if (data.business) {
+        setBusiness(data.business);
+        try {
+          sessionStorage.setItem('hisabkitab_business', JSON.stringify(data.business));
+          localStorage.setItem('hisabkitab_business', JSON.stringify(data.business));
+        } catch (e) {}
+      }
+      await fetchBusinesses();
+      refreshData();
+      return true;
+    } catch (err) {
+      showToast(err.message, 'error');
+      return false;
+    }
+  };
+
   const refreshBusiness = async () => {
     if (!token) return;
     try {
@@ -271,6 +303,7 @@ export const AuthProvider = ({ children }) => {
         fetchBusinesses,
         switchBusiness,
         createBusiness,
+        deleteBusiness,
         dataVersion,
         refreshData
       }}

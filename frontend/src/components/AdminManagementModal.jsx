@@ -5,11 +5,25 @@ import { STATES_LIST, UT_LIST } from '../constants/states';
 import { PasswordInput } from './PasswordInput';
 
 export const AdminManagementModal = ({ isOpen, onClose }) => {
-  const { business, businesses, refreshBusiness, apiFetch } = useAuth();
+  const { business, businesses, refreshBusiness, apiFetch, switchBusiness, deleteBusiness, createBusiness } = useAuth();
   const { showToast } = useToast();
 
   // Split-Pane Category State ('staff', 'profile', 'gst', 'bank', 'logo')
   const [activeCategory, setActiveCategory] = useState('staff');
+
+  // Enterprise Store Outlet Management State
+  const [deleteStoreTarget, setDeleteStoreTarget] = useState(null);
+  const [isDeletingStore, setIsDeletingStore] = useState(false);
+  const [showAddOutlet, setShowAddOutlet] = useState(false);
+  const [isCreatingOutlet, setIsCreatingOutlet] = useState(false);
+  const [newOutletForm, setNewOutletForm] = useState({
+    business_name: '',
+    business_category: 'stationery',
+    phone: '',
+    state: 'Maharashtra',
+    gstin: '',
+    address: ''
+  });
 
   // ==========================================
   // STAFF MANAGEMENT STATE (WITH MEMORY CACHE)
@@ -249,6 +263,36 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
       showToast(err.message, 'error');
     } finally {
       setIsSavingBiz(false);
+    }
+  };
+
+  // Enterprise Store Outlet Handlers
+  const handleDeleteStore = async (store) => {
+    if (!store?.id) return;
+    setIsDeletingStore(true);
+    const success = await deleteBusiness(store.id);
+    setIsDeletingStore(false);
+    if (success) {
+      setDeleteStoreTarget(null);
+    }
+  };
+
+  const handleCreateOutlet = async (e) => {
+    e.preventDefault();
+    if (!newOutletForm.business_name.trim()) return;
+    setIsCreatingOutlet(true);
+    const success = await createBusiness(newOutletForm);
+    setIsCreatingOutlet(false);
+    if (success) {
+      setShowAddOutlet(false);
+      setNewOutletForm({
+        business_name: '',
+        business_category: 'stationery',
+        phone: business?.phone || '',
+        state: business?.state || 'Maharashtra',
+        gstin: '',
+        address: ''
+      });
     }
   };
 
@@ -855,9 +899,200 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
             {/* ================================================================ */}
             {activeCategory === 'profile' && (
               <div>
+                {/* Enterprise Outlets & Multi-Store Management Card */}
+                <div style={{ marginBottom: '20px', padding: '14px 16px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                          <polyline points="9 22 9 12 15 12 15 22" />
+                        </svg>
+                        Enterprise Outlets &amp; Branches ({businesses?.length || 1})
+                      </h4>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748B' }}>
+                        Switch active counter context or register and manage separate retail branches.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddOutlet(!showAddOutlet)}
+                      className="btn btn-secondary btn-xs"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '4px 10px', color: '#1D4ED8', borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }}
+                    >
+                      {showAddOutlet ? 'Cancel' : '+ Add Branch Outlet'}
+                    </button>
+                  </div>
+
+                  {/* Inline Add Outlet Form */}
+                  {showAddOutlet && (
+                    <form onSubmit={handleCreateOutlet} style={{ marginBottom: '12px', padding: '12px 14px', backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #CBD5E1', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B' }}>
+                        Register New Commercial Branch Outlet
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Store / Trade Name *</label>
+                          <input
+                            type="text"
+                            required
+                            className="form-input"
+                            style={{ fontSize: '12px', padding: '6px 10px' }}
+                            placeholder="e.g. Apex Pharmacy, Metro Electronics, City Supermarket"
+                            value={newOutletForm.business_name}
+                            onChange={(e) => setNewOutletForm({ ...newOutletForm, business_name: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Category *</label>
+                          <select
+                            className="form-select"
+                            required
+                            style={{ fontSize: '12px', padding: '6px 10px' }}
+                            value={newOutletForm.business_category}
+                            onChange={(e) => setNewOutletForm({ ...newOutletForm, business_category: e.target.value })}
+                          >
+                            <option value="stationery">Books &amp; Stationery</option>
+                            <option value="pharmacy">Pharmacy &amp; Healthcare</option>
+                            <option value="electronics">Electronics &amp; Mobile</option>
+                            <option value="electricals">Electricals &amp; Lighting</option>
+                            <option value="automobile">Automobile &amp; Hardware</option>
+                            <option value="garments">Garments &amp; Apparel</option>
+                            <option value="cafe">Cafe &amp; Fast Food</option>
+                            <option value="general">General Retail &amp; Grocery</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label className="form-label" style={{ fontSize: '11px' }}>Store Phone *</label>
+                          <input
+                            type="tel"
+                            required
+                            className="form-input"
+                            style={{ fontSize: '12px', padding: '6px 10px' }}
+                            placeholder="e.g. 9876543210"
+                            value={newOutletForm.phone}
+                            onChange={(e) => setNewOutletForm({ ...newOutletForm, phone: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="form-label" style={{ fontSize: '11px' }}>State *</label>
+                          <select
+                            className="form-select"
+                            required
+                            style={{ fontSize: '12px', padding: '6px 10px' }}
+                            value={newOutletForm.state}
+                            onChange={(e) => setNewOutletForm({ ...newOutletForm, state: e.target.value })}
+                          >
+                            <optgroup label="States (28)">
+                              {STATES_LIST.map((s) => (
+                                <option key={s.code} value={s.name}>{s.name} ({s.code})</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Union Territories (8)">
+                              {UT_LIST.map((u) => (
+                                <option key={u.code} value={u.name}>{u.name} ({u.code})</option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddOutlet(false)}
+                          className="btn btn-secondary btn-xs"
+                          style={{ fontSize: '11px', padding: '4px 10px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isCreatingOutlet}
+                          className="btn btn-primary btn-xs"
+                          style={{ fontSize: '11px', padding: '4px 12px' }}
+                        >
+                          {isCreatingOutlet ? 'Creating...' : 'Create & Switch →'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Outlets Listing */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {businesses && businesses.length > 0 ? (
+                      businesses.map((b) => {
+                        const isCurrent = b.id === business?.id;
+                        const canDelete = businesses.length > 1;
+                        return (
+                          <div
+                            key={b.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 12px',
+                              backgroundColor: isCurrent ? '#FFFFFF' : '#F1F5F9',
+                              border: isCurrent ? '1px solid #10B981' : '1px solid #E2E8F0',
+                              borderRadius: '7px'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isCurrent ? '#10B981' : '#94A3B8', flexShrink: 0 }} />
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontSize: '12.5px', fontWeight: isCurrent ? 700 : 600, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.business_name}</span>
+                                  {isCurrent && (
+                                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#059669', backgroundColor: '#D1FAE5', padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase' }}>
+                                      Active
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '10.5px', color: '#64748B' }}>
+                                  Sector: <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{b.business_category || 'General'}</span> • State: {b.state || 'India'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '8px' }}>
+                              {!isCurrent && (
+                                <button
+                                  type="button"
+                                  onClick={() => switchBusiness(b.id)}
+                                  className="btn btn-ghost btn-xs"
+                                  style={{ fontSize: '10.5px', padding: '3px 8px', color: '#2563EB', backgroundColor: '#EFF6FF' }}
+                                  title="Switch to this store"
+                                >
+                                  Switch To
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteStoreTarget(b)}
+                                  className="btn btn-ghost btn-xs"
+                                  style={{ fontSize: '10.5px', padding: '3px 8px', color: '#DC2626', backgroundColor: '#FEE2E2' }}
+                                  title={`Delete outlet "${b.business_name}"`}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ fontSize: '12px', color: '#64748B' }}>
+                        {business?.business_name || 'Primary Store'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div style={{ marginBottom: '16px' }}>
                   <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>
-                    Store Profile &amp; Trade Category
+                    Active Outlet Profile: {business?.business_name || 'My Store'}
                   </h4>
                   <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
                     Primary details for this store outlet. Appears on bills and executive reports.
@@ -1190,6 +1425,77 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
           </div>
         </div>
       </div>
+
+      {/* Delete Store Outlet Confirmation Dialog */}
+      {deleteStoreTarget && (
+        <div className="modal-backdrop" style={{ zIndex: 1300 }} onClick={() => !isDeletingStore && setDeleteStoreTarget(null)}>
+          <div
+            className="modal-sheet"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 20px 45px -10px rgba(15, 23, 42, 0.35)' }}
+          >
+            <div style={{ backgroundColor: '#FEF2F2', padding: '16px 20px', borderBottom: '1px solid #FEE2E2', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '50%', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#991B1B' }}>
+                  Delete Store Outlet
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#B91C1C' }}>
+                  Permanent branch removal
+                </p>
+              </div>
+            </div>
+
+            <div style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#334155', lineHeight: 1.5 }}>
+                Are you sure you want to delete outlet <b>"{deleteStoreTarget.business_name}"</b>?
+              </p>
+              <div style={{ marginTop: '12px', padding: '10px 12px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '11.5px', color: '#64748B', lineHeight: 1.4 }}>
+                All previous invoices, inventory stock ledger, and assigned staff will be consolidated safely under your primary store so financial history is never lost.
+              </div>
+            </div>
+
+            <div style={{ padding: '14px 20px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={isDeletingStore}
+                onClick={() => setDeleteStoreTarget(null)}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '7px 14px', borderRadius: '7px', fontSize: '12.5px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingStore}
+                onClick={() => handleDeleteStore(deleteStoreTarget)}
+                style={{
+                  backgroundColor: '#DC2626',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '7px',
+                  padding: '7px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: isDeletingStore ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isDeletingStore ? 'Deleting Store...' : 'Confirm Delete Outlet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

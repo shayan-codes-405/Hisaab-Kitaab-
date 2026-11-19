@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 
-from database import settings_col, users_col, serialize_doc, get_business_for_user
+from database import settings_col, users_col, serialize_doc, get_business_for_user, products_col, invoices_col
 from auth import require_admin, require_staff_or_admin
 from config import (
     TEXTBEE_API_KEY as ENV_TEXTBEE_KEY,
@@ -131,6 +131,85 @@ def switch_active_business(business_id: str, user: dict = Depends(require_admin)
         "message": f"Switched active store to {target_biz.get('business_name')}",
         "user": serialize_doc(updated_user),
         "business": serialize_doc(target_biz)
+    }
+
+@router.delete("/businesses/{business_id}")
+def delete_enterprise_business(business_id: str, admin_user: dict = Depends(require_admin)):
+    """Admin-only: Delete a store outlet or branch under this enterprise."""
+    try:
+        target_oid = ObjectId(business_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid business ID format.")
+    
+    target_biz = settings_col.find_one({"_id": target_oid})
+    if not target_biz:
+        raise HTTPException(status_code=404, detail="Store outlet not found.")
+
+    current_biz = get_business_for_user(admin_user)
+    ent_id = current_biz.get("enterprise_id") or str(current_biz.get("_id", ""))
+    
+    query = {"$or": [{"enterprise_id": ent_id}, {"_id": current_biz.get("_id")}]} if ent_id else {}
+    all_businesses = list(settings_col.find(query))
+    
+    if len(all_businesses) <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete the only registered outlet. Your account must maintain at least one active store."
+        )
+
+    is_in_enterprise = any(str(b["_id"]) == str(target_oid) for b in all_businesses)
+    if not is_in_enterprise:
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this store.")
+
+    remaining = [b for b in all_businesses if str(b["_id"]) != str(target_oid)]
+    fallback_biz = remaining[0]
+    fallback_id = str(fallback_biz["_id"])
+
+    # If the business being deleted was the enterprise root, update remaining to fallback
+    settings_col.update_many(
+        {"enterprise_id": str(target_oid)},
+        {"$set": {"enterprise_id": fallback_id}}
+    )
+
+    # Reassign staff users belonging to this deleted store to the fallback store
+    users_col.update_many(
+        {"business_id": str(target_oid)},
+        {"$set": {
+            "business_id": fallback_id,
+            "business_name": fallback_biz.get("business_name", "")
+        }}
+    )
+
+    # Reassign products & invoices to fallback store to preserve financial continuity
+    products_col.update_many(
+        {"business_id": str(target_oid)},
+        {"$set": {"business_id": fallback_id}}
+    )
+    invoices_col.update_many(
+        {"business_id": str(target_oid)},
+        {"$set": {"business_id": fallback_id}}
+    )
+
+    # Remove the store document
+    settings_col.delete_one({"_id": target_oid})
+
+    # Switch admin context to fallback store
+    admin_uid = str(admin_user.get("id") or admin_user.get("_id"))
+    users_col.update_one(
+        {"_id": ObjectId(admin_uid)},
+        {"$set": {
+            "business_id": fallback_id,
+            "business_name": fallback_biz.get("business_name", "")
+        }}
+    )
+
+    updated_admin = users_col.find_one({"_id": ObjectId(admin_uid)}, {"password_hash": 0})
+
+    return {
+        "message": f"Store '{target_biz.get('business_name')}' was successfully removed.",
+        "fallback_business_id": fallback_id,
+        "user": serialize_doc(updated_admin),
+        "business": serialize_doc(fallback_biz)
     }
 
 @router.get("")
