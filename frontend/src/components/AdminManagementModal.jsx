@@ -56,6 +56,22 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
   const [newStaffPassword, setNewStaffPassword] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
+  // Edit Staff Member & Role Assignment State
+  const [editTargetStaff, setEditTargetStaff] = useState(null);
+  const [editStaffForm, setEditStaffForm] = useState({
+    full_name: '',
+    role: 'staff',
+    business_id: '',
+    phone: '',
+    email: '',
+    otp: ''
+  });
+  const [editStaffAuthMethod, setEditStaffAuthMethod] = useState('password');
+  const [editAdminPassword, setEditAdminPassword] = useState('');
+  const [editOtpInfo, setEditOtpInfo] = useState(null);
+  const [isSendingEditOtp, setIsSendingEditOtp] = useState(false);
+  const [isSavingEditStaff, setIsSavingEditStaff] = useState(false);
+
   // ==========================================
   // BUSINESS SETTINGS STATE
   // ==========================================
@@ -242,6 +258,92 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
       showToast(err.message, 'error');
     } finally {
       setIsResettingPassword(false);
+    }
+  };
+
+  // Edit Staff Profile & Role Assignment Handlers
+  const handleOpenEditStaff = (staffMember) => {
+    setEditTargetStaff(staffMember);
+    setEditStaffForm({
+      full_name: staffMember.full_name || '',
+      role: staffMember.role || 'staff',
+      business_id: staffMember.business_id || business?.id || '',
+      phone: staffMember.phone || '',
+      email: staffMember.email || '',
+      otp: ''
+    });
+    setEditStaffAuthMethod('password');
+    setEditAdminPassword('');
+    setEditOtpInfo(null);
+  };
+
+  const handleSendEditOtp = async () => {
+    setIsSendingEditOtp(true);
+    try {
+      const res = await apiFetch('/api/auth/staff/send-otp', {
+        method: 'POST',
+        body: JSON.stringify({ staff_username: editTargetStaff?.username })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to send OTP.');
+      setEditOtpInfo(data);
+      showToast(data.message, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsSendingEditOtp(false);
+    }
+  };
+
+  const handleSaveEditStaff = async (e) => {
+    e.preventDefault();
+    if (!editTargetStaff) return;
+
+    if (editStaffAuthMethod === 'password') {
+      if (!editAdminPassword.trim()) {
+        showToast('Please enter your Admin account password to authorize role update.', 'warning');
+        return;
+      }
+    } else {
+      if (!editOtpInfo) {
+        showToast('Please click "Send SMS OTP Code" first.', 'warning');
+        return;
+      }
+      if (!editStaffForm.otp?.trim()) {
+        showToast('Please enter the 6-digit OTP code sent to your phone.', 'warning');
+        return;
+      }
+    }
+
+    setIsSavingEditStaff(true);
+    try {
+      const payload = {
+        full_name: editStaffForm.full_name.trim(),
+        role: editStaffForm.role,
+        business_id: editStaffForm.business_id,
+        phone: editStaffForm.phone?.trim() || '',
+        email: editStaffForm.email?.trim() || '',
+        admin_password: editStaffAuthMethod === 'password' ? editAdminPassword.trim() : '',
+        otp: editStaffAuthMethod === 'otp' ? editStaffForm.otp?.trim() : ''
+      };
+
+      const res = await apiFetch(`/api/auth/staff/${editTargetStaff.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to update staff role.');
+      }
+      showToast(data.message || 'Staff role and details updated successfully!', 'success');
+      setEditTargetStaff(null);
+      setEditAdminPassword('');
+      setEditOtpInfo(null);
+      loadStaff(false);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setIsSavingEditStaff(false);
     }
   };
 
@@ -972,6 +1074,15 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                                 <div style={{ display: 'inline-flex', gap: '5px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                   <button
                                     type="button"
+                                    onClick={() => handleOpenEditStaff(st)}
+                                    className="btn btn-ghost btn-xs"
+                                    style={{ fontSize: '10.5px', padding: '3px 7px', color: '#1D4ED8', backgroundColor: '#EFF6FF', whiteSpace: 'nowrap' }}
+                                    title="Edit staff role and outlet"
+                                  >
+                                    Edit Role
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => {
                                       setResetTargetStaff(st);
                                       setNewStaffPassword('');
@@ -1539,6 +1650,267 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
           </div>
         </div>
       </div>
+
+      {/* Edit Staff Role & Assignment Modal */}
+      {editTargetStaff && (
+        <div className="modal-backdrop" style={{ zIndex: 1300 }} onClick={() => !isSavingEditStaff && setEditTargetStaff(null)}>
+          <div
+            className="modal-sheet"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '520px', borderRadius: '14px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35)' }}
+          >
+            {/* Dark Slate Modal Header */}
+            <div style={{ backgroundColor: '#0F172A', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1E293B' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700, backgroundColor: 'rgba(37, 99, 235, 0.25)', color: '#60A5FA', padding: '2px 7px', borderRadius: '4px' }}>
+                    Staff Role Reassignment
+                  </span>
+                </div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#FFFFFF' }}>
+                  Edit Staff Role &amp; Assignment
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#94A3B8' }}>
+                  @{editTargetStaff.username} • {editTargetStaff.full_name}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingEditStaff}
+                onClick={() => setEditTargetStaff(null)}
+                style={{ background: 'transparent', border: 'none', color: '#94A3B8', fontSize: '18px', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', lineHeight: 1 }}
+                title="Close dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditStaff}>
+              <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#FFFFFF', maxHeight: 'calc(80vh - 120px)', overflowY: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11.5px' }}>Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      className="form-input"
+                      style={{ fontSize: '12.5px', padding: '7px 10px' }}
+                      value={editStaffForm.full_name}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, full_name: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11.5px', fontWeight: 700, color: '#1E40AF' }}>
+                      Assigned Role *
+                    </label>
+                    <select
+                      className="form-select"
+                      required
+                      style={{ fontSize: '12.5px', padding: '7px 10px', borderColor: '#3B82F6', fontWeight: 600 }}
+                      value={editStaffForm.role}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
+                    >
+                      <option value="staff">Billing Cashier (Invoicing)</option>
+                      <option value="inventory_manager">Storekeeper (Stockist)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '11.5px' }}>Assigned Store Outlet *</label>
+                  <select
+                    className="form-select"
+                    required
+                    style={{ fontSize: '12.5px', padding: '7px 10px' }}
+                    value={editStaffForm.business_id || business?.id || ''}
+                    onChange={(e) => setEditStaffForm({ ...editStaffForm, business_id: e.target.value })}
+                  >
+                    {businesses && businesses.length > 0 ? (
+                      businesses.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.business_name} ({b.business_category || 'General'})
+                        </option>
+                      ))
+                    ) : (
+                      <option value={business?.id || ''}>{business?.business_name || 'Primary Store'}</option>
+                    )}
+                  </select>
+                  <span style={{ fontSize: '10.5px', color: '#64748B', marginTop: '3px', display: 'block' }}>
+                    Staff permissions and stock operations will be confined to this store.
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11.5px' }}>Employee Phone</label>
+                    <input
+                      type="tel"
+                      className="form-input"
+                      style={{ fontSize: '12.5px', padding: '7px 10px' }}
+                      value={editStaffForm.phone}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11.5px' }}>Employee Email</label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      style={{ fontSize: '12.5px', padding: '7px 10px' }}
+                      value={editStaffForm.email}
+                      onChange={(e) => setEditStaffForm({ ...editStaffForm, email: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Admin Authorization (Password or SMS OTP) */}
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                    marginTop: '6px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+                        Admin Authorization Required
+                      </div>
+                      <p style={{ fontSize: '10.5px', color: '#64748B', margin: '1px 0 0' }}>
+                        Confirm permission changes with Admin password or SMS OTP.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'inline-flex', backgroundColor: '#E2E8F0', padding: '2px', borderRadius: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditStaffAuthMethod('password')}
+                        style={{
+                          border: 'none',
+                          padding: '3px 8px',
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                          borderRadius: '5px',
+                          cursor: 'pointer',
+                          backgroundColor: editStaffAuthMethod === 'password' ? '#FFFFFF' : 'transparent',
+                          color: editStaffAuthMethod === 'password' ? '#0F172A' : '#64748B',
+                          boxShadow: editStaffAuthMethod === 'password' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'
+                        }}
+                      >
+                        Admin Password
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditStaffAuthMethod('otp')}
+                        style={{
+                          border: 'none',
+                          padding: '3px 8px',
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                          borderRadius: '5px',
+                          cursor: 'pointer',
+                          backgroundColor: editStaffAuthMethod === 'otp' ? '#FFFFFF' : 'transparent',
+                          color: editStaffAuthMethod === 'otp' ? '#0F172A' : '#64748B',
+                          boxShadow: editStaffAuthMethod === 'otp' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'
+                        }}
+                      >
+                        SMS OTP Code
+                      </button>
+                    </div>
+                  </div>
+
+                  {editStaffAuthMethod === 'password' ? (
+                    <div style={{ backgroundColor: '#FFFFFF', padding: '10px 12px', borderRadius: '7px', border: '1px solid #E2E8F0' }}>
+                      <label className="form-label" style={{ fontSize: '11px', marginBottom: '4px' }}>
+                        Admin Account Password *
+                      </label>
+                      <PasswordInput
+                        required
+                        placeholder="Enter your Admin password to authorize role update"
+                        value={editAdminPassword}
+                        onChange={(e) => setEditAdminPassword(e.target.value)}
+                      />
+                      <div style={{ fontSize: '10px', color: '#64748B', marginTop: '4px' }}>
+                        Zero SMS delay. Confirms role change instantly.
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ backgroundColor: '#FFFFFF', padding: '10px 12px', borderRadius: '7px', border: '1px solid #E2E8F0' }}>
+                      <p style={{ fontSize: '10.5px', color: '#334155', margin: '0 0 8px 0' }}>
+                        Confirmation code will be sent to Admin phone ({business?.phone || 'Configured Phone'}).
+                      </p>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {!editOtpInfo ? (
+                          <button
+                            type="button"
+                            disabled={isSendingEditOtp}
+                            onClick={handleSendEditOtp}
+                            className="btn btn-secondary btn-xs"
+                            style={{ fontSize: '11.5px', padding: '5px 12px' }}
+                          >
+                            {isSendingEditOtp ? 'Sending SMS...' : 'Send SMS OTP Code'}
+                          </button>
+                        ) : (
+                          <input
+                            type="text"
+                            required
+                            maxLength={6}
+                            className="form-input"
+                            placeholder="Enter 6-digit OTP code"
+                            value={editStaffForm.otp || ''}
+                            onChange={(e) => setEditStaffForm({ ...editStaffForm, otp: e.target.value })}
+                            style={{ letterSpacing: '0.25em', fontWeight: 700, textAlign: 'center', fontSize: '13px', padding: '6px' }}
+                          />
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '10.5px' }}>
+                        {editOtpInfo && (
+                          <button
+                            type="button"
+                            disabled={isSendingEditOtp}
+                            onClick={handleSendEditOtp}
+                            style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                          >
+                            Resend SMS OTP
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setEditStaffAuthMethod('password')}
+                          style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: 0, textDecoration: 'underline', marginLeft: 'auto' }}
+                        >
+                          SMS not arriving? Authorize with Admin Password instead
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ padding: '12px 20px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  disabled={isSavingEditStaff}
+                  onClick={() => setEditTargetStaff(null)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEditStaff}
+                  className="btn btn-primary btn-sm"
+                >
+                  {isSavingEditStaff ? 'Saving Role...' : 'Save Staff Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Delete Store Outlet Confirmation Dialog */}
       {deleteStoreTarget && (

@@ -51,6 +51,15 @@ class CreateStaffRequest(BaseModel):
     otp: Optional[str] = ""
     admin_password: Optional[str] = ""
 
+class UpdateStaffRequest(BaseModel):
+    full_name: Optional[str] = None
+    role: Optional[str] = None # "staff" or "inventory_manager"
+    business_id: Optional[str] = None
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    otp: Optional[str] = ""
+    admin_password: Optional[str] = ""
+
 class ForgotPasswordOtpRequest(BaseModel):
     username: str = Field(..., min_length=2)
 
@@ -347,14 +356,14 @@ def send_staff_authorization_otp(admin_user: dict = Depends(require_admin)):
     admin_id_str = str(admin_user.get("id") or admin_user.get("_id"))
 
     # Invalidate any old pending staff OTPs for this admin
-    otp_verifications_col.delete_many({"admin_id": admin_id_str, "purpose": "add_staff"})
+    otp_verifications_col.delete_many({"admin_id": admin_id_str, "purpose": {"$in": ["add_staff", "edit_staff", "staff_auth"]}})
 
     # Store OTP with auto-expiry
     otp_verifications_col.insert_one({
         "admin_id": admin_id_str,
         "business_id": str(biz.get("_id")),
         "otp": otp_code,
-        "purpose": "add_staff",
+        "purpose": "staff_auth",
         "created_at": datetime.now(timezone.utc)
     })
 
@@ -466,6 +475,95 @@ def create_staff_with_otp(data: CreateStaffRequest, admin_user: dict = Depends(r
             "is_active": True,
             "business_id": biz_id
         }
+    }
+
+@router.patch("/staff/{staff_id}")
+def update_staff_profile(
+    staff_id: str,
+    data: UpdateStaffRequest,
+    admin_user: dict = Depends(require_admin)
+):
+    """
+    Admin-only: Reassign staff role (Billing Cashier vs Storekeeper / Stockist),
+    change branch outlet assignment, or update contact info.
+    Requires Admin Password OR SMS OTP verification.
+    """
+    biz = get_business_for_user(admin_user)
+    ent_id = biz.get("enterprise_id") or str(biz.get("_id"))
+    ent_stores = list(settings_col.find({"$or": [{"enterprise_id": ent_id}, {"_id": biz.get("_id")}]}, {"_id": 1, "business_name": 1}))
+    allowed_bids = {str(s["_id"]) for s in ent_stores}
+
+    try:
+        target = users_col.find_one({"_id": ObjectId(staff_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid staff ID format.")
+
+    if not target or (target.get("business_id") and target.get("business_id") not in allowed_bids):
+        raise HTTPException(status_code=404, detail="Staff account not found under your enterprise.")
+
+    if target.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="Cannot modify primary administrator via staff endpoint.")
+
+    # Admin Authorization: Admin Password OR SMS OTP
+    admin_id_str = str(admin_user.get("id") or admin_user.get("_id"))
+    admin_pw = (data.admin_password or "").strip()
+    clean_otp = (data.otp or "").strip()
+
+    if admin_pw:
+        admin_doc = users_col.find_one({"_id": ObjectId(admin_id_str)})
+        if not (admin_doc and verify_password(admin_pw, admin_doc.get("password_hash", ""))):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect Admin password. Please check your password or authorize via SMS OTP."
+            )
+    elif clean_otp:
+        otp_record = otp_verifications_col.find_one({
+            "admin_id": admin_id_str,
+            "purpose": {"$in": ["add_staff", "edit_staff", "staff_auth"]},
+            "otp": clean_otp
+        })
+        if not otp_record:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired authorization OTP. Please request a new code or authorize with your Admin password."
+            )
+        otp_verifications_col.delete_one({"_id": otp_record["_id"]})
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authorization required: please enter your Admin password or 6-digit SMS OTP."
+        )
+
+    update_fields = {}
+    if data.full_name and data.full_name.strip():
+        update_fields["full_name"] = data.full_name.strip()
+
+    if data.role and data.role in ("staff", "inventory_manager"):
+        update_fields["role"] = data.role
+
+    if data.business_id:
+        if data.business_id in allowed_bids:
+            target_store = next((s for s in ent_stores if str(s["_id"]) == data.business_id), None)
+            store_name = target_store.get("business_name", "") if target_store else biz.get("business_name", "")
+            update_fields["business_id"] = data.business_id
+            update_fields["business_name"] = store_name
+
+    if data.phone is not None:
+        update_fields["phone"] = data.phone.strip()
+
+    if data.email is not None:
+        update_fields["email"] = data.email.strip()
+
+    update_fields["updated_at"] = datetime.now(timezone.utc)
+
+    users_col.update_one({"_id": ObjectId(staff_id)}, {"$set": update_fields})
+
+    updated_target = users_col.find_one({"_id": ObjectId(staff_id)}, {"password_hash": 0})
+    role_label = "Storekeeper (Stockist)" if updated_target.get("role") == "inventory_manager" else "Billing Cashier"
+    return {
+        "success": True,
+        "message": f"Updated {updated_target.get('full_name')} role to {role_label}.",
+        "user": serialize_doc(updated_target)
     }
 
 @router.patch("/staff/{staff_id}/toggle-status")
