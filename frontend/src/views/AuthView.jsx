@@ -438,22 +438,6 @@ export const AuthView = () => {
                     />
                   </div>
 
-                  {forgotOtpInfo && forgotOtpInfo.demo_otp && (
-                    <div
-                      style={{
-                        backgroundColor: '#ECFDF5',
-                        border: '1px solid #A7F3D0',
-                        color: '#065F46',
-                        padding: '6px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        marginBottom: '12px'
-                      }}
-                    >
-                      ℹ️ <b>Demo Mode Code:</b> <code>{forgotOtpInfo.demo_otp}</code> (Simulation active).
-                    </div>
-                  )}
-
                   <div className="form-group">
                     <label className="form-label">New Password</label>
                     <PasswordInput

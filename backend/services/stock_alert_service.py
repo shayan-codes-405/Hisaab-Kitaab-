@@ -249,8 +249,7 @@ def send_restock_authorization_otp(
     return {
         "success": True,
         "message": f"Authorization OTP sent to Store Owner phone ending in •••• {phone_hint}.",
-        "phone_hint": phone_hint,
-        "demo_otp": otp_code if dispatch_res.get("mode") == "demo" else None
+        "phone_hint": phone_hint
     }
 
 def verify_restock_otp(staff_id: str, otp_code: str) -> bool:

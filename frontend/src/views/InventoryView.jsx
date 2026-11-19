@@ -509,10 +509,6 @@ export const InventoryView = () => {
       showToast(data.message, 'success');
       setOtpSent(true);
       if (data.phone_hint) setPhoneHint(data.phone_hint);
-      if (data.demo_otp) {
-        setInwardOtp(data.demo_otp);
-        showToast(`[Demo Mode] OTP autofilled: ${data.demo_otp}`, 'info');
-      }
     } catch (err) {
       showToast(err.message, 'error');
     } finally {

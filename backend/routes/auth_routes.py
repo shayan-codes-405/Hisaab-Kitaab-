@@ -1,4 +1,5 @@
 import random
+import re
 import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -47,7 +48,8 @@ class CreateStaffRequest(BaseModel):
     business_id: Optional[str] = None
     phone: Optional[str] = ""
     email: Optional[str] = ""
-    otp: str = Field(..., min_length=4)
+    otp: Optional[str] = ""
+    admin_password: Optional[str] = ""
 
 class ForgotPasswordOtpRequest(BaseModel):
     username: str = Field(..., min_length=2)
@@ -77,12 +79,31 @@ def dispatch_otp_sms(
 
     api_key = (settings.get("textbee_api_key") or TEXTBEE_API_KEY or "").strip()
     device_id = (settings.get("textbee_device_id") or TEXTBEE_DEVICE_ID or "").strip()
-    demo_mode = False if (api_key and device_id and not TEXTBEE_DEMO_MODE) else settings.get("textbee_demo_mode", TEXTBEE_DEMO_MODE)
+
+    # Fallback to any configured enterprise business if this outlet has empty credentials
+    if not (api_key and device_id):
+        fallback_biz = settings_col.find_one({"textbee_api_key": {"$exists": True, "$ne": ""}})
+        if fallback_biz:
+            api_key = (fallback_biz.get("textbee_api_key") or api_key).strip()
+            device_id = (fallback_biz.get("textbee_device_id") or device_id).strip()
+
+    demo_mode = False if (api_key and device_id and not settings.get("textbee_demo_mode", False)) else settings.get("textbee_demo_mode", TEXTBEE_DEMO_MODE)
     api_url = (settings.get("textbee_api_url") or TEXTBEE_API_URL or "https://api.textbee.dev/api/v1").rstrip('/')
+
+    # Format phone number to international E.164 standard (+91...)
+    clean_p = re.sub(r'[\s\-\(\)]', '', phone.strip())
+    if re.match(r'^[6-9]\d{9}$', clean_p):
+        formatted_phone = f"+91{clean_p}"
+    elif re.match(r'^0[6-9]\d{9}$', clean_p):
+        formatted_phone = f"+91{clean_p[1:]}"
+    elif re.match(r'^91[6-9]\d{9}$', clean_p):
+        formatted_phone = f"+{clean_p}"
+    else:
+        formatted_phone = clean_p
 
     log_entry = {
         "invoice_number": log_type,
-        "recipient_phone": phone,
+        "recipient_phone": formatted_phone,
         "customer_name": f"{admin_user.get('full_name', '')} ({admin_user.get('username', 'user')})",
         "message_text": msg_body,
         "status": "OTP_SENT",
@@ -94,7 +115,7 @@ def dispatch_otp_sms(
         log_entry["status"] = "DEMO_OTP_SIMULATED"
         log_entry["provider_response"] = {"demo": True, "note": "Simulated OTP in demo mode"}
         sms_logs_col.insert_one(log_entry)
-        return {"mode": "demo", "dispatched": True, "otp": otp_code}
+        return {"mode": "demo", "dispatched": True}
 
     # Dispatch real SMS via TextBee REST API
     try:
@@ -103,7 +124,7 @@ def dispatch_otp_sms(
             "x-api-key": api_key,
             "Content-Type": "application/json"
         }
-        resp = requests.post(url, json={"recipients": [phone], "message": msg_body}, headers=headers, verify=False, timeout=12)
+        resp = requests.post(url, json={"recipients": [formatted_phone], "message": msg_body}, headers=headers, verify=False, timeout=12)
         log_entry["http_status_code"] = resp.status_code
         log_entry["status"] = "DISPATCHED_TO_GATEWAY" if resp.status_code in (200, 201) else "FAILED"
         sms_logs_col.insert_one(log_entry)
@@ -345,30 +366,51 @@ def send_staff_authorization_otp(admin_user: dict = Depends(require_admin)):
     return {
         "success": True,
         "message": f"Authorization OTP sent to Admin's registered phone ending in •••• {phone_hint}.",
-        "phone_hint": phone_hint,
-        "demo_otp": dispatch_res.get("otp") if dispatch_res.get("mode") == "demo" else None
+        "phone_hint": phone_hint
     }
 
 @router.post("/staff/create")
 def create_staff_with_otp(data: CreateStaffRequest, admin_user: dict = Depends(require_admin)):
     """
-    Step 2 of 2-Step Staff Addition:
-    Validates the 6-digit OTP received by the Admin, then creates the staff account.
+    Step 2 of Staff Addition:
+    Authorizes either via the 6-digit SMS OTP received by the Admin,
+    or directly via the Admin Account Password (fallback if SMS is delayed).
     """
     admin_id_str = str(admin_user.get("id") or admin_user.get("_id"))
-    clean_otp = data.otp.strip()
+    admin_pw = (data.admin_password or "").strip()
+    clean_otp = (data.otp or "").strip()
 
-    # Verify OTP
-    otp_record = otp_verifications_col.find_one({
-        "admin_id": admin_id_str,
-        "purpose": "add_staff",
-        "otp": clean_otp
-    })
+    is_authorized = False
 
-    if not otp_record:
+    if admin_pw:
+        # Direct Admin Account Password verification
+        admin_doc = users_col.find_one({"_id": ObjectId(admin_id_str)})
+        if admin_doc and verify_password(admin_pw, admin_doc.get("password_hash", "")):
+            is_authorized = True
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect Admin password. Please check your password or authorize via SMS OTP."
+            )
+    elif clean_otp:
+        # SMS OTP verification
+        otp_record = otp_verifications_col.find_one({
+            "admin_id": admin_id_str,
+            "purpose": "add_staff",
+            "otp": clean_otp
+        })
+        if otp_record:
+            is_authorized = True
+            otp_verifications_col.delete_one({"_id": otp_record["_id"]})
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired authorization OTP. Please request a new code or authorize with your Admin password."
+            )
+    else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired authorization OTP. Please click 'Send OTP' to receive a new code."
+            detail="Authorization required: please enter your Admin password or the 6-digit SMS OTP."
         )
 
     clean_username = data.username.strip().lower()
@@ -569,8 +611,7 @@ def forgot_password_send_otp(data: ForgotPasswordOtpRequest):
     return {
         "success": True,
         "message": f"Verification code sent to Admin mobile ending in •••• {phone_hint}.",
-        "phone_hint": phone_hint,
-        "demo_otp": dispatch_res.get("otp") if dispatch_res.get("mode") == "demo" else None
+        "phone_hint": phone_hint
     }
 
 @router.post("/forgot-password/verify-reset")

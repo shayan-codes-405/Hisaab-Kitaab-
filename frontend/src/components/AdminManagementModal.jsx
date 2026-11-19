@@ -45,6 +45,8 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     otp: ''
   };
   const [staffForm, setStaffForm] = useState(initialStaffForm);
+  const [staffAuthMethod, setStaffAuthMethod] = useState('password');
+  const [adminAuthPassword, setAdminAuthPassword] = useState('');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpInfo, setOtpInfo] = useState(null);
   const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
@@ -160,31 +162,51 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
     }
   };
 
-  // Step 2: Authorize & Create Staff
+  // Step 2: Authorize & Create Staff (via Admin Password or SMS OTP)
   const handleCreateStaff = async (e) => {
     e.preventDefault();
-    if (!otpInfo) {
-      showToast('Please click "Send OTP to Admin Phone" first.', 'warning');
-      return;
-    }
-    if (!staffForm.otp.trim()) {
-      showToast('Please enter the 6-digit OTP sent to your phone.', 'warning');
-      return;
+    if (staffAuthMethod === 'password') {
+      if (!adminAuthPassword.trim()) {
+        showToast('Please enter your Admin account password to authorize.', 'warning');
+        return;
+      }
+    } else {
+      if (!otpInfo) {
+        showToast('Please click "Send SMS OTP Code" first.', 'warning');
+        return;
+      }
+      if (!staffForm.otp.trim()) {
+        showToast('Please enter the 6-digit OTP sent to your phone.', 'warning');
+        return;
+      }
     }
 
     setIsSubmittingStaff(true);
     try {
+      const payload = {
+        full_name: staffForm.full_name.trim(),
+        username: staffForm.username.trim(),
+        password: staffForm.password,
+        role: staffForm.role,
+        business_id: staffForm.business_id || business?.id,
+        phone: staffForm.phone?.trim() || '',
+        email: staffForm.email?.trim() || '',
+        otp: staffAuthMethod === 'otp' ? staffForm.otp.trim() : '',
+        admin_password: staffAuthMethod === 'password' ? adminAuthPassword.trim() : ''
+      };
+
       const res = await apiFetch('/api/auth/staff/create', {
         method: 'POST',
-        body: JSON.stringify(staffForm)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.detail || 'Failed to create staff member.');
       }
-      showToast(data.message, 'success');
+      showToast(data.message || 'Staff member authorized and created!', 'success');
       setStaffForm(initialStaffForm);
       setOtpInfo(null);
+      setAdminAuthPassword('');
       setShowAddForm(false);
       loadStaff(true);
     } catch (err) {
@@ -643,61 +665,153 @@ export const AdminManagementModal = ({ isOpen, onClose }) => {
                         </div>
                       </div>
 
-                      {/* Step 1 & Step 2 OTP Box */}
+                      {/* Admin Authorization (Password or SMS OTP) */}
                       <div
                         style={{
-                          backgroundColor: '#EFF6FF',
-                          border: '1px solid #BFDBFE',
+                          backgroundColor: '#F8FAFC',
+                          border: '1px solid #CBD5E1',
                           borderRadius: '8px',
-                          padding: '12px',
-                          marginTop: '10px'
+                          padding: '12px 14px',
+                          marginTop: '12px'
                         }}
                       >
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E40AF', marginBottom: '2px' }}>
-                          Admin Authorization Code
-                        </div>
-                        <p style={{ fontSize: '11px', color: '#3B82F6', margin: 0, marginBottom: '8px' }}>
-                          A 6-digit confirmation code will be sent to the Admin mobile ({business?.phone || 'Configured Phone'}) to approve this account.
-                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                          <div>
+                            <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
+                              Admin Authorization Required
+                            </div>
+                            <p style={{ fontSize: '11px', color: '#64748B', margin: '2px 0 0' }}>
+                              Approve this staff account using your Admin password or SMS OTP code.
+                            </p>
+                          </div>
 
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                          {!otpInfo ? (
+                          <div style={{ display: 'inline-flex', backgroundColor: '#E2E8F0', padding: '2px', borderRadius: '6px' }}>
                             <button
                               type="button"
-                              disabled={isSendingOtp}
-                              onClick={handleSendOtp}
-                              className="btn btn-secondary btn-sm"
+                              onClick={() => setStaffAuthMethod('password')}
+                              style={{
+                                border: 'none',
+                                padding: '4px 10px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                                backgroundColor: staffAuthMethod === 'password' ? '#FFFFFF' : 'transparent',
+                                color: staffAuthMethod === 'password' ? '#0F172A' : '#64748B',
+                                boxShadow: staffAuthMethod === 'password' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                                transition: 'all 0.15s ease'
+                              }}
                             >
-                              {isSendingOtp ? 'Sending SMS...' : 'Send Authorization Code'}
+                              Admin Password
                             </button>
-                          ) : (
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%' }}>
+                            <button
+                              type="button"
+                              onClick={() => setStaffAuthMethod('otp')}
+                              style={{
+                                border: 'none',
+                                padding: '4px 10px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                                backgroundColor: staffAuthMethod === 'otp' ? '#FFFFFF' : 'transparent',
+                                color: staffAuthMethod === 'otp' ? '#0F172A' : '#64748B',
+                                boxShadow: staffAuthMethod === 'otp' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              SMS OTP Code
+                            </button>
+                          </div>
+                        </div>
+
+                        {staffAuthMethod === 'password' ? (
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px', borderRadius: '7px', border: '1px solid #E2E8F0' }}>
+                            <label className="form-label" style={{ fontSize: '11.5px', marginBottom: '4px' }}>
+                              Admin Account Password *
+                            </label>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                               <div style={{ flex: 1 }}>
-                                <input
-                                  type="text"
+                                <PasswordInput
                                   required
-                                  maxLength={6}
-                                  className="form-input"
-                                  placeholder="Enter 6-digit OTP code"
-                                  value={staffForm.otp}
-                                  onChange={(e) => setStaffForm({ ...staffForm, otp: e.target.value })}
-                                  style={{ letterSpacing: '0.25em', fontWeight: 700, textAlign: 'center', fontSize: '14px' }}
+                                  placeholder="Enter your Admin account password to authorize"
+                                  value={adminAuthPassword}
+                                  onChange={(e) => setAdminAuthPassword(e.target.value)}
                                 />
                               </div>
                               <button
                                 type="submit"
                                 disabled={isSubmittingStaff}
                                 className="btn btn-primary btn-sm"
+                                style={{ whiteSpace: 'nowrap', padding: '7px 16px' }}
                               >
-                                {isSubmittingStaff ? 'Verifying...' : 'Authorize & Create'}
+                                {isSubmittingStaff ? 'Authorizing...' : 'Authorize & Create Staff'}
                               </button>
                             </div>
-                          )}
-                        </div>
+                            <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '6px' }}>
+                              Direct authorization with zero SMS latency. Approves and creates staff account immediately.
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ backgroundColor: '#FFFFFF', padding: '12px', borderRadius: '7px', border: '1px solid #E2E8F0' }}>
+                            <p style={{ fontSize: '11px', color: '#334155', margin: '0 0 8px 0' }}>
+                              A 6-digit confirmation code will be sent to the Admin mobile ({business?.phone || 'Configured Phone'}) via TextBee.
+                            </p>
 
-                        {otpInfo && otpInfo.demo_otp && (
-                          <div style={{ marginTop: '8px', fontSize: '11px', color: '#047857', backgroundColor: '#ECFDF5', padding: '5px 8px', borderRadius: '4px' }}>
-                            Demo Code: <code>{otpInfo.demo_otp}</code>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              {!otpInfo ? (
+                                <button
+                                  type="button"
+                                  disabled={isSendingOtp}
+                                  onClick={handleSendOtp}
+                                  className="btn btn-secondary btn-sm"
+                                >
+                                  {isSendingOtp ? 'Sending SMS...' : 'Send SMS OTP Code'}
+                                </button>
+                              ) : (
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <input
+                                      type="text"
+                                      required
+                                      maxLength={6}
+                                      className="form-input"
+                                      placeholder="Enter 6-digit OTP code"
+                                      value={staffForm.otp}
+                                      onChange={(e) => setStaffForm({ ...staffForm, otp: e.target.value })}
+                                      style={{ letterSpacing: '0.25em', fontWeight: 700, textAlign: 'center', fontSize: '14px' }}
+                                    />
+                                  </div>
+                                  <button
+                                    type="submit"
+                                    disabled={isSubmittingStaff}
+                                    className="btn btn-primary btn-sm"
+                                  >
+                                    {isSubmittingStaff ? 'Verifying...' : 'Authorize & Create'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '11px' }}>
+                              {otpInfo && (
+                                <button
+                                  type="button"
+                                  disabled={isSendingOtp}
+                                  onClick={handleSendOtp}
+                                  style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                                >
+                                  Resend SMS OTP
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setStaffAuthMethod('password')}
+                                style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: 0, textDecoration: 'underline', marginLeft: 'auto' }}
+                              >
+                                SMS not arriving? Authorize with Admin Password instead
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
