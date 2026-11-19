@@ -1,4 +1,5 @@
 import random
+import re
 import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -9,21 +10,45 @@ from typing import Optional, Tuple
 from database import settings_col, users_col, sms_logs_col, otp_verifications_col, stock_inwards_col
 from config import TEXTBEE_API_KEY, TEXTBEE_DEVICE_ID, TEXTBEE_API_URL, TEXTBEE_DEMO_MODE
 
-def get_admin_phone_and_name(settings: Optional[dict] = None) -> Tuple[str, str]:
-    """Retrieve the primary store owner/admin phone number and name."""
-    if not settings:
-        settings = settings_col.find_one({}) or {}
-    
-    phone = (settings.get("phone") or "").strip()
-    owner_name = settings.get("business_name", "Store Owner")
-
+def normalize_phone_e164(phone: str) -> str:
+    """Normalize phone number to international E.164 format (+91...)."""
     if not phone:
+        return ""
+    clean = re.sub(r'[\s\-\(\)]', '', phone.strip())
+    if re.match(r'^[6-9]\d{9}$', clean):
+        return f"+91{clean}"
+    if clean.startswith('91') and len(clean) == 12:
+        return f"+{clean}"
+    if not clean.startswith('+') and len(clean) >= 10:
+        return f"+{clean}"
+    return clean
+
+def get_admin_phone_and_name(settings: Optional[dict] = None) -> Tuple[str, str]:
+    """Retrieve the primary store owner/admin phone number and name in E.164 standard."""
+    phone = ""
+    owner_name = "Store Owner"
+
+    if settings:
+        phone = (settings.get("phone") or "").strip()
+        owner_name = settings.get("business_name", "Store Owner")
+
+    if not phone or len(re.sub(r'\D', '', phone)) < 10:
+        # Search all registered enterprise settings for a valid 10-digit phone
+        for b in settings_col.find():
+            p_val = (b.get("phone") or "").strip()
+            if len(re.sub(r'\D', '', p_val)) >= 10:
+                phone = p_val
+                owner_name = b.get("business_name", owner_name)
+                break
+
+    if not phone or len(re.sub(r'\D', '', phone)) < 10:
         admin_user = users_col.find_one({"role": "admin"})
         if admin_user:
             phone = (admin_user.get("phone") or "").strip()
             owner_name = admin_user.get("full_name") or admin_user.get("username", "Admin")
 
-    return phone, owner_name
+    normalized_phone = normalize_phone_e164(phone)
+    return normalized_phone, owner_name
 
 def dispatch_textbee_sms(
     recipient_phone: str,
@@ -41,12 +66,22 @@ def dispatch_textbee_sms(
 
     api_key = (settings.get("textbee_api_key") or TEXTBEE_API_KEY or "").strip()
     device_id = (settings.get("textbee_device_id") or TEXTBEE_DEVICE_ID or "").strip()
-    demo_mode = False if (api_key and device_id and not TEXTBEE_DEMO_MODE) else settings.get("textbee_demo_mode", TEXTBEE_DEMO_MODE)
+
+    # Enterprise credential inheritance fallback
+    if not (api_key and device_id):
+        fallback_biz = settings_col.find_one({"textbee_api_key": {"$exists": True, "$ne": ""}})
+        if fallback_biz:
+            api_key = (fallback_biz.get("textbee_api_key") or api_key).strip()
+            device_id = (fallback_biz.get("textbee_device_id") or device_id).strip()
+
+    demo_mode = False if (api_key and device_id and not settings.get("textbee_demo_mode", False)) else settings.get("textbee_demo_mode", TEXTBEE_DEMO_MODE)
     api_url = (settings.get("textbee_api_url") or TEXTBEE_API_URL or "https://api.textbee.dev/api/v1").rstrip('/')
+
+    target_phone = normalize_phone_e164(recipient_phone)
 
     log_entry = {
         "invoice_number": log_type,
-        "recipient_phone": recipient_phone,
+        "recipient_phone": target_phone,
         "customer_name": f"Notification: {log_type}",
         "message_text": message,
         "status": "DISPATCHING",
@@ -72,7 +107,7 @@ def dispatch_textbee_sms(
             "Content-Type": "application/json"
         }
         payload = {
-            "recipients": [recipient_phone],
+            "recipients": [target_phone],
             "message": message
         }
         resp = requests.post(url, json=payload, headers=headers, verify=False, timeout=12)
@@ -105,10 +140,11 @@ def notify_stock_inward(
     auth_type: str,
     declaration: Optional[str] = None,
     discrepancy_info: Optional[dict] = None,
-    free_items: Optional[list] = None
+    free_items: Optional[list] = None,
+    settings: Optional[dict] = None
 ) -> dict:
     """Instant alert triggered within 0-5s when staff logs stock inward, including discrepancy statements and promotional gifts."""
-    phone, owner_name = get_admin_phone_and_name()
+    phone, owner_name = get_admin_phone_and_name(settings)
     if not phone:
         return {"success": False, "message": "No admin phone configured"}
 
@@ -146,7 +182,8 @@ def notify_stock_inward(
         recipient_phone=phone,
         message=msg,
         log_type=f"INWARD-{auth_type}",
-        sent_by=staff_name
+        sent_by=staff_name,
+        settings=settings
     )
 
 def notify_stockist_statement(

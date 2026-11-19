@@ -405,7 +405,7 @@ def create_staff_with_otp(data: CreateStaffRequest, admin_user: dict = Depends(r
         # SMS OTP verification
         otp_record = otp_verifications_col.find_one({
             "admin_id": admin_id_str,
-            "purpose": "add_staff",
+            "purpose": {"$in": ["add_staff", "staff_auth"]},
             "otp": clean_otp
         })
         if otp_record:

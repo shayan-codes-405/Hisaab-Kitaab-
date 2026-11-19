@@ -161,6 +161,13 @@ export const InventoryView = () => {
   const [stockPackages, setStockPackages] = useState('');
   const [restockUnitType, setRestockUnitType] = useState('pkg');
 
+  const getActiveStoreId = () => {
+    if (!isAdmin) return business?.id || '';
+    if (storeFilter === 'all') return 'all';
+    if (storeFilter !== 'current') return storeFilter;
+    return business?.id || '';
+  };
+
   const loadProducts = async (forceSpinner = false) => {
     if (products.length === 0 || forceSpinner) {
       setLoading(true);
@@ -170,8 +177,9 @@ export const InventoryView = () => {
       if (search) params.append('search', search);
       if (categoryFilter !== 'All') params.append('category', categoryFilter);
       if (statusFilter !== 'all') params.append('status_filter', statusFilter);
-      if (isAdmin && storeFilter && storeFilter !== 'current') {
-        params.append('store_id', storeFilter);
+      const storeIdParam = getActiveStoreId();
+      if (storeIdParam) {
+        params.append('store_id', storeIdParam);
       }
 
       const res = await apiFetch(`/api/inventory?${params.toString()}`);
@@ -189,7 +197,9 @@ export const InventoryView = () => {
 
   const loadInwardAlerts = async () => {
     try {
-      const res = await apiFetch('/api/inventory/inward/alerts');
+      const storeIdParam = getActiveStoreId();
+      const q = storeIdParam ? `?store_id=${storeIdParam}` : '';
+      const res = await apiFetch(`/api/inventory/inward/alerts${q}`);
       if (res.ok) {
         const data = await res.json();
         setInwardAlerts(data);
@@ -447,7 +457,11 @@ export const InventoryView = () => {
 
   const viewLedger = async (p = null) => {
     try {
-      const url = p ? `/api/inventory/movements/ledger?product_id=${p.id}` : '/api/inventory/movements/ledger';
+      const storeIdParam = getActiveStoreId();
+      const params = new URLSearchParams();
+      if (p) params.append('product_id', p.id);
+      if (storeIdParam) params.append('store_id', storeIdParam);
+      const url = `/api/inventory/movements/ledger?${params.toString()}`;
       const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -575,6 +589,8 @@ export const InventoryView = () => {
     try {
       const params = new URLSearchParams();
       if (status !== 'all') params.append('status_filter', status);
+      const storeIdParam = getActiveStoreId();
+      if (storeIdParam) params.append('store_id', storeIdParam);
       const res = await apiFetch(`/api/inventory/inwards?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -592,6 +608,8 @@ export const InventoryView = () => {
     try {
       const params = new URLSearchParams();
       if (status !== 'all') params.append('status_filter', status);
+      const storeIdParam = getActiveStoreId();
+      if (storeIdParam) params.append('store_id', storeIdParam);
       const res = await apiFetch(`/api/inventory/vendor-claims?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -616,6 +634,8 @@ export const InventoryView = () => {
           params.append('status_filter', status);
         }
       }
+      const storeIdParam = getActiveStoreId();
+      if (storeIdParam) params.append('store_id', storeIdParam);
       const res = await apiFetch(`/api/inventory/gifts?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();

@@ -269,6 +269,7 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
                     "received_by_id": staff_id,
                     "received_by_name": staff_name,
                     "received_at": datetime.now(timezone.utc),
+                    "business_id": b_id,
                     "status": "PENDING_ADMIN_ALLOCATION",
                     "allocation_type": None,
                     "created_at": datetime.now(timezone.utc)
@@ -339,6 +340,7 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
             "discrepancy_qty": shortage_qty,
             "stockist_remarks": stockist_remarks,
             "free_items": free_items_list,
+            "business_id": b_id,
             "status": inward_status,
             "created_at": now_utc,
             "cron_reminder_sent": False,
@@ -359,6 +361,7 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
 
         stock_movements_col.insert_one({
             "product_id": ObjectId(product_id),
+            "business_id": b_id,
             "product_name": product_doc["name"],
             "sku": product_doc["sku"],
             "movement_type": "INITIAL_STOCK",
@@ -389,7 +392,8 @@ def add_product(data: ProductCreate, user: dict = Depends(require_inventory_or_a
             supplier_bill_no=clean_bill_no,
             auth_type="NORMAL",
             discrepancy_info=discrepancy_info,
-            free_items=free_items_list
+            free_items=free_items_list,
+            settings=biz
         )
 
     return {
@@ -469,8 +473,10 @@ def sync_unclaimed_inwards():
             shortage_qty = float(inw.get("discrepancy_qty") or 0.0)
             claim_amount = round(shortage_qty * unit_cost, 2)
             claim_id = f"CLM-{inw.get('supplier_bill_no', 'BILL')}-{int(now_utc.timestamp())}"
+            biz_id = str(inw.get("business_id", "") or (prod.get("business_id", "") if prod else ""))
             vendor_claims_col.insert_one({
                 "claim_id": claim_id,
+                "business_id": biz_id,
                 "supplier_name": inw.get("supplier_name", "Unknown Supplier"),
                 "supplier_bill_no": inw.get("supplier_bill_no", ""),
                 "inward_id": inw["_id"],
@@ -490,25 +496,50 @@ def sync_unclaimed_inwards():
             })
 
 @router.get("/inward/alerts")
-def get_inward_alerts(user: dict = Depends(require_staff_or_admin)):
-    """Retrieve in-app alert badges and action items for inward disputes and audit tasks."""
+def get_inward_alerts(store_id: Optional[str] = None, user: dict = Depends(require_staff_or_admin)):
+    """Retrieve in-app alert badges and action items for inward disputes and audit tasks, scoped to active store."""
     sync_unclaimed_inwards()
     is_admin = user.get("role") == "admin"
     username = user.get("username")
 
+    if not is_admin:
+        b_id = str(user.get("business_id", ""))
+    else:
+        b_id = store_id or str(user.get("business_id", ""))
+
+    scope_filter = None
+    if b_id and b_id != "all":
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == b_id and user_biz.get("enterprise_id") == b_id)
+        if is_primary:
+            scope_filter = {"$or": [{"business_id": b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]}
+        else:
+            scope_filter = {"business_id": b_id}
+
+    def with_scope(base_q: dict) -> dict:
+        if not scope_filter:
+            return base_q
+        return {"$and": [base_q, scope_filter]}
+
     if is_admin:
         # Items needing Admin review, recount, or where stockist appealed
-        disputed = list(stock_inwards_col.find({
+        disputed_q = with_scope({
             "$or": [
                 {"admin_review_pending": True},
                 {"status": "FLAGGED_DISCREPANCY"}
             ]
-        }).sort("created_at", -1))
+        })
+        disputed = list(stock_inwards_col.find(disputed_q).sort("created_at", -1))
         
-        pending_audit = list(stock_inwards_col.find({"status": "PENDING_AUDIT"}).sort("created_at", -1))
-        pending_claims = list(vendor_claims_col.find({"status": "PENDING_SETTLEMENT"}))
+        pending_audit_q = with_scope({"status": "PENDING_AUDIT"})
+        pending_audit = list(stock_inwards_col.find(pending_audit_q).sort("created_at", -1))
+
+        pending_claims_q = with_scope({"status": "PENDING_SETTLEMENT"})
+        pending_claims = list(vendor_claims_col.find(pending_claims_q))
         pending_claims_total = sum(float(c.get("claim_amount", 0.0)) for c in pending_claims)
-        pending_gifts = list(promotional_gifts_col.find({"status": "PENDING_ADMIN_ALLOCATION"}))
+
+        pending_gifts_q = with_scope({"status": "PENDING_ADMIN_ALLOCATION"})
+        pending_gifts = list(promotional_gifts_col.find(pending_gifts_q))
         
         return {
             "is_admin": True,
@@ -522,14 +553,15 @@ def get_inward_alerts(user: dict = Depends(require_staff_or_admin)):
         }
     else:
         # Stockist: disputed records needing explanation/appeal or where Admin rejected initial claim
-        my_inwards = list(stock_inwards_col.find({
+        my_inwards_q = with_scope({
             "status": "FLAGGED_DISCREPANCY",
             "$or": [
                 {"received_by_name": user.get("full_name")},
                 {"received_by_id": str(user.get("_id") or user.get("id"))},
                 {"received_by_id": username}
             ]
-        }).sort("created_at", -1))
+        })
+        my_inwards = list(stock_inwards_col.find(my_inwards_q).sort("created_at", -1))
 
         return {
             "is_admin": False,
@@ -544,13 +576,29 @@ def get_inward_alerts(user: dict = Depends(require_staff_or_admin)):
 @router.get("/inwards")
 def list_stock_inwards(
     status_filter: Optional[str] = Query("all", pattern="^(all|PENDING_AUDIT|VERIFIED|FLAGGED_DISCREPANCY)$"),
+    store_id: Optional[str] = None,
     limit: int = 50,
     user: dict = Depends(require_inventory_or_admin)
 ):
-    """List stock inward logs for the Admin Stock Audit Tray."""
-    query = {}
+    """List stock inward logs for the Admin Stock Audit Tray scoped to active store."""
+    if user.get("role") != "admin":
+        b_id = str(user.get("business_id", ""))
+    else:
+        b_id = store_id or str(user.get("business_id", ""))
+
+    query_parts = []
+    if b_id and b_id != "all":
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == b_id and user_biz.get("enterprise_id") == b_id)
+        if is_primary:
+            query_parts.append({"$or": [{"business_id": b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]})
+        else:
+            query_parts.append({"business_id": b_id})
+
     if status_filter != "all":
-        query["status"] = status_filter
+        query_parts.append({"status": status_filter})
+
+    query = {"$and": query_parts} if query_parts else {}
     cursor = stock_inwards_col.find(query).sort("created_at", -1).limit(limit)
     records = []
     for doc in cursor:
@@ -735,6 +783,8 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
             "details": f"Gifts received: {gift_summary_str}. Routed to Store Owner for allocation."
         })
 
+    prod_biz_id = str(p.get("business_id", "") or user.get("business_id", ""))
+
     # Create stock_inwards record
     inward_doc = {
         "product_id": p["_id"],
@@ -755,6 +805,7 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
         "discrepancy_qty": shortage_qty,
         "stockist_remarks": stockist_remarks,
         "free_items": free_items_list,
+        "business_id": prod_biz_id,
         "status": inward_status,
         "created_at": now_utc,
         "cron_reminder_sent": False,
@@ -776,6 +827,7 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
 
     stock_movements_col.insert_one({
         "product_id": p["_id"],
+        "business_id": prod_biz_id,
         "product_name": p["name"],
         "sku": p.get("sku", ""),
         "movement_type": "STOCK_INWARD",
@@ -789,6 +841,7 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
     })
 
     # Dispatch instant alert SMS to Store Owner (includes discrepancy statement and promo gifts)
+    user_biz = get_business_for_user(user)
     sms_feedback = notify_stock_inward(
         staff_name=staff_name,
         product_name=p["name"],
@@ -798,7 +851,8 @@ def log_stock_inward(data: StockInwardRequest, user: dict = Depends(require_inve
         auth_type=auth_type,
         declaration=data.emergency_declaration,
         discrepancy_info=discrepancy_info,
-        free_items=free_items_list
+        free_items=free_items_list,
+        settings=user_biz
     )
 
     return {
@@ -1288,20 +1342,37 @@ def get_stockist_performance(user: dict = Depends(require_staff_or_admin)):
 def list_vendor_claims(
     status_filter: Optional[str] = Query("all", pattern="^(all|PENDING_SETTLEMENT|SETTLED)$"),
     supplier_search: Optional[str] = None,
+    store_id: Optional[str] = None,
     user: dict = Depends(require_staff_or_admin)
 ):
-    """List all vendor debit claims generated from inward delivery shortages."""
+    """List all vendor debit claims generated from inward delivery shortages scoped to store."""
     sync_unclaimed_inwards()
-    query = {}
-    if status_filter != "all":
-        query["status"] = status_filter
-    if supplier_search:
-        query["supplier_name"] = {"$regex": supplier_search.strip(), "$options": "i"}
 
+    if user.get("role") != "admin":
+        b_id = str(user.get("business_id", ""))
+    else:
+        b_id = store_id or str(user.get("business_id", ""))
+
+    query_parts = []
+    if b_id and b_id != "all":
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == b_id and user_biz.get("enterprise_id") == b_id)
+        if is_primary:
+            query_parts.append({"$or": [{"business_id": b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]})
+        else:
+            query_parts.append({"business_id": b_id})
+
+    if status_filter != "all":
+        query_parts.append({"status": status_filter})
+    if supplier_search:
+        query_parts.append({"supplier_name": {"$regex": supplier_search.strip(), "$options": "i"}})
+
+    query = {"$and": query_parts} if query_parts else {}
     claims = list(vendor_claims_col.find(query).sort("created_at", -1))
     
-    # Calculate totals
-    all_claims = list(vendor_claims_col.find({}))
+    # Calculate totals scoped to store
+    base_store_query = {"$and": query_parts[:1]} if (b_id and b_id != "all" and query_parts) else {}
+    all_claims = list(vendor_claims_col.find(base_store_query))
     pending_total = sum(float(c.get("claim_amount", 0.0)) for c in all_claims if c.get("status") == "PENDING_SETTLEMENT")
     settled_total = sum(float(c.get("claim_amount", 0.0)) for c in all_claims if c.get("status") == "SETTLED")
     pending_count = sum(1 for c in all_claims if c.get("status") == "PENDING_SETTLEMENT")
@@ -1351,18 +1422,34 @@ def settle_vendor_claim(
 def list_promotional_gifts(
     status_filter: Optional[str] = Query("all", pattern="^(all|PENDING_ADMIN_ALLOCATION|ALLOCATED)$"),
     allocation_filter: Optional[str] = Query("all", pattern="^(all|CUSTOMER_PROMO_SCHEME|FESTIVAL_DIWALI_VAULT|OWNER_STORE_ASSET|SELLABLE_STOCK)$"),
+    store_id: Optional[str] = None,
     user: dict = Depends(require_staff_or_admin)
 ):
-    """List promotional, free sample, and festival gifts received from suppliers."""
-    query = {}
-    if status_filter != "all":
-        query["status"] = status_filter
-    if allocation_filter != "all":
-        query["allocation_type"] = allocation_filter
+    """List promotional, free sample, and festival gifts received from suppliers scoped to store."""
+    if user.get("role") != "admin":
+        b_id = str(user.get("business_id", ""))
+    else:
+        b_id = store_id or str(user.get("business_id", ""))
 
+    query_parts = []
+    if b_id and b_id != "all":
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == b_id and user_biz.get("enterprise_id") == b_id)
+        if is_primary:
+            query_parts.append({"$or": [{"business_id": b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]})
+        else:
+            query_parts.append({"business_id": b_id})
+
+    if status_filter != "all":
+        query_parts.append({"status": status_filter})
+    if allocation_filter != "all":
+        query_parts.append({"allocation_type": allocation_filter})
+
+    query = {"$and": query_parts} if query_parts else {}
     gifts = list(promotional_gifts_col.find(query).sort("created_at", -1))
     
-    all_gifts = list(promotional_gifts_col.find({}))
+    base_store_query = {"$and": query_parts[:1]} if (b_id and b_id != "all" and query_parts) else {}
+    all_gifts = list(promotional_gifts_col.find(base_store_query))
     pending_alloc = sum(1 for g in all_gifts if g.get("status") == "PENDING_ADMIN_ALLOCATION")
     active_schemes = sum(1 for g in all_gifts if g.get("allocation_type") == "CUSTOMER_PROMO_SCHEME" and float(g.get("remaining_qty", 0)) > 0)
     festival_vault = sum(1 for g in all_gifts if g.get("allocation_type") == "FESTIVAL_DIWALI_VAULT")
@@ -1513,13 +1600,22 @@ def update_gift_vault_action(
     }
 
 @router.get("/gifts/active-schemes")
-def get_active_promotional_schemes(user: dict = Depends(require_staff_or_admin)):
+def get_active_promotional_schemes(store_id: Optional[str] = None, user: dict = Depends(require_staff_or_admin)):
     """Retrieve active promotional gift schemes for billing / invoice counter."""
-    schemes = list(promotional_gifts_col.find({
-        "status": "ALLOCATED",
-        "allocation_type": "CUSTOMER_PROMO_SCHEME",
-        "remaining_qty": {"$gt": 0}
-    }).sort("created_at", -1))
+    b_id = store_id or str(user.get("business_id", ""))
+    query_parts = [
+        {"status": "ALLOCATED"},
+        {"allocation_type": "CUSTOMER_PROMO_SCHEME"},
+        {"remaining_qty": {"$gt": 0}}
+    ]
+    if b_id and b_id != "all":
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == b_id and user_biz.get("enterprise_id") == b_id)
+        if is_primary:
+            query_parts.append({"$or": [{"business_id": b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]})
+        else:
+            query_parts.append({"business_id": b_id})
+    schemes = list(promotional_gifts_col.find({"$and": query_parts}).sort("created_at", -1))
     return serialize_doc(schemes)
 
 @router.get("/cron/audit-reminder")
@@ -1532,17 +1628,27 @@ def cron_audit_reminder():
 @router.get("/movements/ledger")
 def get_stock_ledger(
     product_id: Optional[str] = None,
+    store_id: Optional[str] = None,
     limit: int = 50,
     user: dict = Depends(require_staff_or_admin)
 ):
-    """Retrieve stock movement audit log."""
-    query = {}
+    """Retrieve stock movement audit log scoped to store."""
+    b_id = store_id or str(user.get("business_id", ""))
+    query_parts = []
     if product_id:
         try:
-            query["product_id"] = ObjectId(product_id)
+            query_parts.append({"product_id": ObjectId(product_id)})
         except Exception:
             pass
-            
+    elif b_id and b_id != "all":
+        user_biz = get_business_for_user(user)
+        is_primary = user_biz.get("is_primary", False) or (str(user_biz.get("_id", "")) == b_id and user_biz.get("enterprise_id") == b_id)
+        if is_primary:
+            query_parts.append({"$or": [{"business_id": b_id}, {"business_id": {"$exists": False}}, {"business_id": None}]})
+        else:
+            query_parts.append({"business_id": b_id})
+
+    query = {"$and": query_parts} if query_parts else {}
     cursor = stock_movements_col.find(query).sort("created_at", -1).limit(limit)
     return serialize_doc(list(cursor))
 

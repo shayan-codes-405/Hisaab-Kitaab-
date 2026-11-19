@@ -366,9 +366,8 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
       if (search) params.append('search', search);
       if (statusFilter !== 'all') params.append('payment_status', statusFilter);
       if (isAdmin && staffFilter !== 'all') params.append('staff', staffFilter);
-      if (isAdmin && storeFilter && storeFilter !== 'current') {
-        params.append('store_id', storeFilter);
-      }
+      const storeIdParam = isAdmin ? (storeFilter === 'all' ? 'all' : (storeFilter !== 'current' ? storeFilter : (business?.id || ''))) : (business?.id || '');
+      if (storeIdParam) params.append('store_id', storeIdParam);
       const res = await apiFetch(`/api/invoices?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -381,10 +380,11 @@ export const InvoiceView = ({ defaultTab = 'history', viewInvoiceId = null, onCl
     }
   };
 
-  // Load Inventory Products for picker
+  // Load Inventory Products for picker (strictly scoped to active store)
   const loadProducts = async () => {
     try {
-      const res = await apiFetch('/api/inventory?status_filter=all');
+      const bParam = business?.id ? `&store_id=${business.id}` : '';
+      const res = await apiFetch(`/api/inventory?status_filter=all${bParam}`);
       if (res.ok) {
         const data = await res.json();
         setProducts(data.products || []);
