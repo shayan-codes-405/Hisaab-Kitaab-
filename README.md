@@ -1,5 +1,5 @@
 # HisabKitab
-### Cloud-Native GST Billing, Multi-Unit Inventory & Financial Ledger System
+### Multi-Unit Inventory & Financial Ledger System
 
 A high-performance business accounting, dynamic retail billing, and inventory ledger platform tailored for commercial retail and wholesale merchants. It replaces rigid relational database tables with an optimized **MongoDB NoSQL document architecture**, combining real-time GST computation, fractional retail packaging conversions, and instant digital receipt dispatch.
 
