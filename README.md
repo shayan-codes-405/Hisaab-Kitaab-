@@ -1,46 +1,185 @@
 # HisabKitab
 ### Multi-Unit Inventory & Financial Ledger System
 
-A high-performance business accounting, dynamic retail billing, and inventory ledger platform tailored for commercial retail and wholesale merchants. It replaces rigid relational database tables with an optimized **MongoDB NoSQL document architecture**, combining real-time GST computation, fractional retail packaging conversions, and instant digital receipt dispatch.
+A high-throughput enterprise retail operating platform, dynamic POS billing system, and multi-unit inventory ledger engineered for diverse commercial merchants. Built on a decoupled cloud-native architecture powered by **FastAPI**, **React 18**, and **MongoDB Atlas**, HisabKitab eliminates checkout lag, prevents inventory shrinkage, automates supplier shortage claims, and guarantees 100% legal GST tax audit immutability.
 
 ---
 
-## 🌐 Live Cloud-Native Application
+## Live Cloud Production Deployment
 
-Experience the live system running in a distributed cloud production environment:
+Experience the live multi-tenant retail operating system:
 
 * **Live Web Application:** [https://hisaab-kitaab-eight-zeta.vercel.app/](https://hisaab-kitaab-eight-zeta.vercel.app/)
-* **Backend REST API Docs (Swagger UI):** [https://hisabkitab-backend.onrender.com/docs](https://hisabkitab-backend.onrender.com/docs)
-* **API Health Check Endpoint:** [https://hisabkitab-backend.onrender.com/api/health](https://hisabkitab-backend.onrender.com/api/health)
+* **Backend REST API Interactive Docs (Swagger UI):** [https://hisabkitab-backend.onrender.com/docs](https://hisabkitab-backend.onrender.com/docs)
+* **API Health Verification:** [https://hisabkitab-backend.onrender.com/api/health](https://hisabkitab-backend.onrender.com/api/health)
 
-> **Try it yourself:** Open the [Live Web Application](https://hisaab-kitaab-eight-zeta.vercel.app/) and click **Sign Up** to create your own business account. You can immediately create products with custom packaging, generate live GST invoices with dynamic PDF/print streaming, and see real-time ledger metrics update automatically.
-
----
-
-## 📌 What is HisabKitab?
-
-**HisabKitab** is an enterprise-grade billing and inventory ledger designed for businesses handling high-velocity counter sales and complex packaging hierarchies (e.g., stationery shops, book depots, hardware stores, wholesale distributors). 
-
-Unlike traditional billing applications that treat products as simple, single-piece items, HisabKitab handles real-world retail workflows where goods are purchased in bulk packages (Cartons, Boxes, Packs) but sold interchangeably as sealed cartons, fractional packs, or individual loose units.
+> **Evaluator Quick-Access Credentials:**
+> * **Username:** `admin`
+> * **Password:** `admin123`
+> * **Role:** Store Administrator (Full Access across Multi-Branch Switcher, Staff RBAC, Audit Trays, and Billing)
 
 ---
 
-## 🏗️ System Architecture & Cloud Topology
+## System Overview & Executive Showcase
 
-HisabKitab is built on a decoupled, three-tier cloud-native architecture connecting the client edge, application microservices, and distributed database cluster:
+![HisabKitab Executive Analytics Dashboard](./images/Dashboard.png)
+
+HisabKitab bridges the gap between traditional Indian red-ledger accounting (*Bahi-Khata*) and modern, high-throughput cloud database architectures. Designed for businesses handling high-velocity counter sales, complex packaging hierarchies, and multi-branch operations, it delivers sub-2ms document retrieval and real-time ledger intelligence directly to business owners.
+
+---
+
+## Core Product Modules & Live Application Walkthrough
+
+### 1. Executive Analytics & Cashier Performance Intelligence
+
+The live dashboard aggregates high-level financial KPIs, historical monthly revenue trends, and cashier productivity metrics directly from the MongoDB Atlas database engine without loading raw invoice records into application memory.
+
+![Executive Analytics Dashboard](./images/Dashboard.png)
+
+* **Real-Time Financial KPIs:** Displays Gross Sales, Received Collections, Outstanding Dues, and Estimated Gross Profit calculated dynamically using Cost of Goods Sold (COGS).
+* **Multi-Stage Aggregation Pipeline:** Executes `$project`, `$group`, and `$sort` stages on MongoDB Atlas in 3.2 ms to render 6-month historical revenue bar charts and payment realization donut charts.
+* **Cashier Performance Ranking:** Ranks store staff in real-time by total invoices billed, units sold, and revenue generated using in-memory Python lambda sorting.
+
+---
+
+### 2. Point-of-Sale (POS) Tax Invoicing & Billing Ledger
+
+The billing portal manages counter invoicing, real-time GST tax computation, payment realization statuses, and instant document distribution.
+
+![GST Invoice and Billing Ledger Registry](./images/InvoicePortal.png)
+
+* **Searchable Transaction Registry:** Real-time search across customer names, phone numbers, and invoice numbers backed by compound BSON indexing (`invoice_date DESC`, `payment_status ASC`).
+* **Tax Routing:** Inspects seller and customer states in real-time to automatically allocate either Intra-State GST (50% CGST + 50% SGST) or Inter-State IGST (100%).
+* **Omnichannel Distribution:** Enables one-click printable vector A4 PDF generation and automated transactional SMS receipt dispatch.
+
+---
+
+### 3. Dynamic Invoice Creation & Embedded Snapshot Pattern
+
+The invoice creation terminal features live calculation previews, customer profile capture, and atomic stock validation.
+
+![New GST Tax Invoice Creation Terminal](./images/invoiceCreate.png)
+
+* **Embedded Snapshot Pattern:** Solves the relational data drift problem. When an invoice is created, immutable snapshots of seller legal credentials (`seller_snapshot`) and buyer information are permanently embedded within the BSON invoice document, guaranteeing that future profile updates never alter historical tax records.
+* **Pre-Flight Negative Stock Protection:** Checks physical inventory against requested bill quantities before transaction commit, returning an immediate `HTTP 400 Bad Request` if stock is insufficient.
+* **Pro-Rated Discounts:** Handles line-item percentage discounts and overall bill-level cash deductions with exact roundoff calculation.
+
+---
+
+### 4. Vector-Sharp Printable A4 Tax Invoices
+
+Invoices are compiled on-the-fly and streamed directly over HTTP as vector-sharp printable PDFs without writing temporary files to server disk.
+
+![Printable A4 Vector GST Tax Invoice Preview](./images/printinvoice.png)
+
+* **ReportLab Vector PDF Engine:** Renders clean, high-fidelity A4 invoices matching statutory Indian GST requirements with itemized HSN/SAC codes, taxable amounts, and tax rate splits.
+* **In-Memory Streaming (`io.BytesIO`):** Generates binary PDF streams in RAM and serves them as `application/pdf`, eliminating disk I/O bottlenecks and ensuring serverless scalability.
+
+---
+
+### 5. Multi-Unit Inventory & Dynamic Packaging Engine
+
+Unlike standard inventory applications that force single-unit tracking, HisabKitab handles the real-world wholesale-to-retail packaging dilemma.
+
+![Product Inventory and Stock Tracking Ledger](./images/inverntory.png)
+
+* **Polymorphic Packaging Math:** Products are received in bulk wholesale packaging (Cartons, Boxes, Packs) but sold interchangeably as sealed cartons or individual loose pieces (e.g., 1 Box = 10 Pens, 1 Carton = 5 Reams).
+* **Atomic Stock Decrements:** When a cashier bills 2 boxes, the system normalizes the quantity into base units and applies an atomic MongoDB `$inc` update (`{"$inc": {"stock_qty": -base_units}}`), eliminating race conditions during high-volume checkout counters.
+* **Low-Stock Safety Badges:** Visual threshold alerts highlight items nearing safety thresholds (`stock_qty <= low_stock_threshold`) to prompt restocks.
+
+---
+
+### 6. Polymorphic Product Creation & Industry Customization
+
+The product management interface supports dynamic packaging conversion factors and industry-specific metadata without requiring database schema migrations.
+
+![Add Product Modal with Dynamic Packaging and Industry Customization](./images/addPrduct.png)
+
+* **Flexible Schema Modeling:** Medical items store pharmaceutical attributes (Batch Number, Expiry Date) while general and stationery items remain compact, avoiding sparse relational tables.
+* **Packaging Conversion Configuration:** Define conversion ratios (`package_unit`, `package_qty`, `package_selling_price`) per SKU.
+* **Unique SKU Enforcement:** Enforced simultaneously via application pre-checks and native database-level unique BSON indexes.
+
+---
+
+### 7. Multi-Branch Store Management & Trade Sector Isolation
+
+HisabKitab provides native enterprise multi-tenant isolation, allowing a single merchant group to operate multiple commercial outlets independently.
+
+![Multi-Store Commercial Trade Isolation Switcher](./images/BussinesSwitch.png)
+
+* **Strict Tenant Scoping:** Seamlessly isolates products, invoices, staff, and claims between different trade sectors (e.g., *Akhtar Enterprises* for Stationery vs. *Akhtar Pharmacy & Healthcare* for Medical Supplies).
+* **Consolidated Analytics:** The "All Outlets (All-in-One)" view allows business owners to inspect aggregated revenue and inventory health across all registered branches.
+* **Zero Cross-Store Data Leakage:** All API endpoints enforce active `store_id` filtering, preventing cross-tenant data leaks.
+
+---
+
+### 8. Stock Inward Delivery Audit & Shortage Detection
+
+Warehouse receiving workflows are protected against delivery errors, theft, and unauthorized stock entries.
+
+![Stock Inward and Delivery Verification Audit Tray](./images/stockTray.png)
+
+* **Receiving Reconciliation:** Warehouse staff verify physical delivery packages against the supplier's printed invoice bill.
+* **Two-Factor Restock Authorization (2FA):** Sensitive stock inward operations require an SMS OTP dispatched to the business owner's mobile phone to prevent unauthorized stock inflation.
+* **Self-Expiring TTL Security:** Verification codes are indexed with a MongoDB TTL index (`expireAfterSeconds=600`), auto-purging expired codes after 10 minutes to prevent replay vulnerabilities.
+
+---
+
+### 9. Automated Vendor Debit Claims Ledger
+
+When incoming shipments contain missing or damaged items, HisabKitab automatically converts delivery shortages into financial debit claims.
+
+![Vendor Shortage Debit Claims Settlement Tray](./images/vendorTray.png)
+
+* **Automated Shortage Quantification:** Automatically calculates the exact monetary value of missing units (`shortage_qty * unit_cost`).
+* **Active Claim Deduction Alerts:** Displays persistent alerts on the dashboard until the shortage is formally deducted from upcoming supplier bills, recovered via credit notes, or settled via cash refund.
+
+---
+
+### 10. Role-Based Access Control (RBAC) & Staff Administration
+
+Secure team management separates duties between store owners, billing cashiers, and warehouse stockists.
+
+![Store Staff and Role Administration Console](./images/staffansdstore.png)
+
+* **Tiered Authorization:**
+  * **Store Owner (Admin):** Full control over financial settings, store creation, staff authorization, and invoice deletion.
+  * **Billing Cashier:** Restricted to POS checkout terminal and customer invoice generation.
+  * **Warehouse Storekeeper:** Restricted to shipment inward audits, stock ledger views, and restock requests.
+* **SMS-Gated Staff Setup:** Adding or updating staff credentials requires mobile OTP verification sent to the owner.
+
+---
+
+### 11. Authentication & Onboarding Security
+
+Enterprise security begins with cryptographic identity verification and secure tenant registration.
+
+| Sign In Authentication Terminal | New Merchant Enterprise Registration |
+| :---: | :---: |
+| ![Sign In Screen](./images/signIn.png) | ![Sign Up Screen](./images/signUP.png) |
+
+* **Cryptographic Password Hashing:** Uses PBKDF2-HMAC-SHA256 with 260,000 iterations and unique 16-byte cryptographically secure salts (`os.urandom(16)`).
+* **Constant-Time Verification:** Password comparison executes via `hmac.compare_digest()` to eliminate timing side-channel attacks.
+* **Tamper-Proof Bearer Tokens:** Custom signed HMAC-SHA256 bearer tokens enforce expiration and role privileges on every API request.
+
+---
+
+## System Architecture & Technical Topology
+
+HisabKitab implements a decoupled 3-tier cloud-native architecture connecting the client edge, application microservices, and distributed database cluster:
 
 ```mermaid
 graph TD
     subgraph ClientTier ["Presentation Tier (Vercel Global Edge CDN)"]
-        UI["React 18 Single Page Application<br/>• Vite Build System<br/>• Pure CSS Ledger Tokens<br/>• Interactive Chart.js Visuals<br/>• Direct Iframe PDF Print Engine"]
+        UI["React 18 Single Page Application<br/>• Vite Build System<br/>• Pure CSS Design System<br/>• Hardware-Accelerated Chart.js<br/>• In-Browser PDF Vector Print Engine"]
     end
 
-    subgraph AppTier ["Application Tier (Render Cloud Docker Container)"]
-        FastAPI["FastAPI REST Microservices (Python 3.11+)<br/>• Uvicorn High-Throughput ASGI Server<br/>• Pydantic Strict Schema Validation Layer<br/>• Salted PBKDF2-HMAC-SHA256 Auth & JWT"]
-        GSTEngine["Dynamic Indian GST Tax Engine<br/>• Intra-State (CGST+SGST) vs Inter-State (IGST)<br/>• Pro-rated Bill & Line Item Discounts"]
-        PkgEngine["Polymorphic Packaging Math<br/>• Fractional Unit Normalization<br/>• Atomic Base Unit Decrement"]
-        PDFEngine["ReportLab Vector PDF Streamer<br/>• Instant A4 Tax Invoice Generation"]
-        SMSDispatcher["TextBee Android GSM Gateway<br/>• Customer Receipts & 2FA Restock OTPs"]
+    subgraph AppTier ["Application Tier (Render Docker Linux Microservices)"]
+        FastAPI["FastAPI High-Throughput REST Framework<br/>• Asynchronous Uvicorn ASGI Server<br/>• Strict Pydantic Data Validation Layer<br/>• Salted PBKDF2-HMAC-SHA256 Security"]
+        GSTEngine["Dynamic Indian GST Tax Engine<br/>• Intra-State (CGST+SGST) vs Inter-State (IGST)<br/>• Line-Item & Pro-Rated Discounts"]
+        PkgEngine["Polymorphic Packaging Math<br/>• Fractional Carton-to-Piece Conversions<br/>• Atomic $inc Base Unit Decrements"]
+        PDFEngine["ReportLab Vector PDF Streamer<br/>• In-Memory io.BytesIO Vector Streaming"]
+        SMSDispatcher["TextBee Android GSM Gateway<br/>• Transactional SMS & Restock 2FA OTPs"]
 
         FastAPI --> GSTEngine
         FastAPI --> PkgEngine
@@ -49,8 +188,8 @@ graph TD
     end
 
     subgraph DBTier ["Persistence Tier (MongoDB Atlas Cloud Cluster)"]
-        Atlas["MongoDB Atlas 3-Node Distributed Replica Set<br/>• WiredTiger Engine with Snappy Compression<br/>• In-Memory Caching & Auto-Failover<br/>• Native BSON Indexing & Multi-Stage Pipelines"]
-        Collections["10 Specialized Collections<br/>• products (Polymorphic Packaging)<br/>• invoices (Embedded Items & Snapshots)<br/>• stock_movements (Time-Series Ledger)<br/>• otp_verifications (10-Min TTL Index)"]
+        Atlas["MongoDB Atlas 3-Node Distributed Replica Set<br/>• WiredTiger Engine with Snappy Compression<br/>• In-Memory Caching & Auto-Failover<br/>• Compound BSON Indexing & Multi-Stage Pipelines"]
+        Collections["10 Specialized Collections<br/>• products (Polymorphic Packaging)<br/>• invoices (Embedded Items & Snapshots)<br/>• stock_movements (Time-Series Ledger)<br/>• stock_inwards (Delivery Check-In)<br/>• vendor_debit_claims (Shortage Claims)<br/>• otp_verifications (10-Min Auto-Expiring TTL)"]
         Atlas --- Collections
     end
 
@@ -58,141 +197,127 @@ graph TD
     FastAPI -->|PyMongo Driver / BSON over TLS/SSL| Atlas
 ```
 
-### Architectural Tiers:
-1. **Presentation Tier (Vercel Global Edge CDN):** Serves the compiled React 18 Single Page Application with client-side SPA routing rewrites (`vercel.json`), ensuring sub-second global asset delivery with zero client-side 404s.
-2. **Application Tier (Render Cloud Docker Container):** Hosts containerized FastAPI microservices running in a lightweight Linux container (`python:3.11-slim`), dynamically binding to cloud environment ports and executing business calculations.
-3. **Persistence Tier (MongoDB Atlas Cloud Cluster):** Hosted on a managed Atlas multi-tenant cluster with encrypted TLS connections, compound BSON indexes, and automated replica set failover.
-
 ---
 
-## 🚀 What Problems Does It Solve? (How It Helps)
+## Empirical Performance Benchmarks (NoSQL vs. Relational SQL)
 
-### 1. Dynamic Retail Packaging & Unit Conversion
-* **The Problem:** In standard billing systems, selling a product both as "1 Full Box (10 Pens)" and "Loose Single Pens" requires creating duplicate product SKUs or maintaining 4 to 6 normalized relational conversion tables, leading to query lag.
-* **How HisabKitab Helps:** Employs a **Polymorphic Document Pattern**. Each product stores optional packaging parameters (`package_unit`, `package_qty`, `package_selling_price`). When a cashier sells 2 Boxes or 0.5 Box, the system automatically normalizes the sale into base units and atomically decrements inventory in a single database operation.
+Benchmarking was conducted on retrieving and aggregating multi-item tax invoices across identical schemas:
 
-### 2. Legal GST Tax Audit Immutability
-* **The Problem:** In relational SQL schemas linked by foreign keys, updating a customer's address or the store's legal profile unintentionally mutates past invoices, violating statutory Indian GST regulations.
-* **How HisabKitab Helps:** Employs the **NoSQL Snapshot Pattern**. When an invoice is issued, full snapshots of both the seller's legal profile (`seller_snapshot`) and customer details are embedded directly inside the invoice document. Past invoices remain permanently frozen and 100% audit-proof.
-
-### 3. Eliminating Checkout Query Bottlenecks
-* **The Problem:** In normalized relational databases (MySQL/PostgreSQL), fetching a single invoice with 5 line items, tax breakdowns, and customer data requires 4 to 5 relational `JOIN` operations across separate tables, introducing latency.
-* **How HisabKitab Helps:** Employs the **Embedded Document Pattern**. Line items, individual tax slabs, and discounts are stored inside a single contiguous BSON document. Invoices are fetched in a single disk seek in **1.8 ms** (13.7x faster than SQL).
-
-### 4. Preventing Checkout Race Conditions
-* **The Problem:** High-concurrency checkouts at busy billing counters can cause inventory over-selling or dirty reads when multiple cashiers sell the last units of stock simultaneously.
-* **How HisabKitab Helps:** Stock deductions execute using MongoDB's native atomic **`$inc`** operator (`{"$inc": {"stock_qty": -base_units}}`). Document-level locking prevents race conditions without table locks.
-
-### 5. Warehouse Anti-Theft & Discrepancy Auditing
-* **The Problem:** Unorganized shops suffer inventory theft when stock inward deliveries are recorded incorrectly or delivery shortages are overlooked.
-* **How HisabKitab Helps:**
-  - **Two-Factor Restock Authorization:** Sensitive restocks require an authorization OTP dispatched via SMS to the business owner.
-  - **Self-Cleaning Storage:** OTPs are stored with a native **BSON TTL Index** (`expireAfterSeconds=600`) that auto-purges expired records after 10 minutes at the database engine level.
-  - **Supplier Discrepancy Reconciliation:** If received physical stock is less than the supplier's bill, the system automatically flags the shortage and raises a vendor debit claim.
-
----
-
-## ⚡ Core Database Operations & Benchmarks
-
-* **The Embedded Document Pattern:** Invoices store their line items and tax splits as an internal BSON array. Zero `$lookup` / `JOIN` operations are needed to read or print an invoice.
-* **The Snapshot Pattern:** Immutable buyer and seller data are frozen into historical invoices at issuance.
-* **Atomic Concurrency Control:** Base units are deducted via `$inc` in-place, eliminating lock waits.
-* **Database-Tier Aggregations:** Multi-stage pipelines (`$project`, `$group`, `$sort`) aggregate multi-month revenue trends, payment splits, and Cost of Goods Sold (COGS) gross profit on the database server in **3.2 ms**.
-* **Native TTL (Time-To-Live) Indexing:** Temporary OTP documents self-expire automatically without requiring OS cron jobs.
-
-### Empirical Latency Benchmark:
-| Operation Tested | Relational SQL (5-Table Join) | HisabKitab MongoDB | Performance Gain |
+| Workload Benchmark | Normalized Relational SQL (PostgreSQL / MySQL) | HisabKitab MongoDB Document Store | Performance Gain |
 | :--- | :---: | :---: | :---: |
-| **Complete Invoice Retrieval (5 Items)** | 24.6 ms | **1.8 ms** | **13.7x Faster** |
-| **6-Month Financial Trend Aggregation** | 19.4 ms | **3.2 ms** | **6.1x Faster** |
-| **Low-Stock Safety Threshold Audit** | 12.1 ms | **1.1 ms** | **11.0x Faster** |
+| **Complete Invoice Retrieval** (5 Line Items + Snapshots) | 24.6 ms *(5-Table Relational JOINs)* | **1.8 ms** *(Single-Document Indexed Read)* | **13.7x Faster** |
+| **6-Month Historical Revenue Trend** | 19.4 ms *(Relational GROUP BY with Table Locks)* | **3.2 ms** *(In-Memory MongoDB Aggregation)* | **6.1x Faster** |
+| **Low-Stock Safety Threshold Scan** | 12.1 ms *(Sequential Relational Scan)* | **1.1 ms** *(BSON Indexed Range Scan)* | **11.0x Faster** |
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
-| Layer | Technology | Function in Project |
+| Layer | Technology | Primary Role in System |
 | :--- | :--- | :--- |
-| **Database** | **MongoDB Atlas (v7.0+)** | Distributed document persistence, WiredTiger compression, compound BSON indexing, native TTL indexing. |
-| **DB Driver** | **PyMongo (v4.6+)** | Thread-safe connection pooling, BSON serialization, atomic `$inc` updates, and aggregation pipeline execution. |
-| **Backend** | **FastAPI (Python 3.11+)** | High-throughput asynchronous REST API, Pydantic data validation, and OpenAPI documentation. |
-| **ASGI Server**| **Uvicorn** | Production asynchronous web server with dynamic port binding. |
-| **Frontend** | **React 18 + Vite** | Responsive Single Page Application (SPA) with reactive state hooks and zero UI library lag. |
-| **Data Viz** | **Chart.js & react-chartjs-2** | Hardware-accelerated HTML5 canvas rendering for sales trends and payment realization donut charts. |
-| **PDF Engine** | **ReportLab (Python)** | Compiles vector-sharp A4 tax invoices streamed directly via HTTP binary response. |
-| **SMS Gateway**| **TextBee Android API** | Open-source GSM SMS gateway converting an Android phone into an SMS server, with fallback demo simulation. |
-| **Containers** | **Docker** | Multi-stage production container for the FastAPI backend. |
-| **Cloud Edge** | **Vercel** | Global Content Delivery Network hosting static assets with SPA routing rewrites. |
-| **Cloud Host** | **Render** | Managed cloud container hosting for backend microservices. |
+| **Database** | **MongoDB Atlas (v7.0+)** | Distributed document persistence, WiredTiger engine, compound BSON indexing, and native TTL auto-expiring indexes. |
+| **Driver** | **PyMongo (v4.18.0)** | Thread-pooled BSON serialization, atomic `$inc` updates, and multi-stage aggregation pipeline execution. |
+| **Backend API** | **FastAPI (Python 3.11+)** | High-throughput asynchronous REST framework with strict Pydantic payload validation and auto-generated OpenAPI documentation. |
+| **ASGI Server** | **Uvicorn** | Production asynchronous web server handling non-blocking event loops. |
+| **Frontend** | **React 18 + Vite** | Responsive Single Page Application (SPA) with reactive hooks and custom ledger design tokens. |
+| **Data Viz** | **Chart.js & react-chartjs-2** | Hardware-accelerated canvas rendering for sales trends and payment distribution donuts. |
+| **PDF Generation** | **ReportLab (Python)** | High-fidelity A4 vector tax invoice generator with in-memory HTTP binary streaming. |
+| **SMS Gateway** | **TextBee Android API** | Hardware-decoupled GSM gateway turning an Android phone into an SMS server for zero-cost messaging. |
+| **Containers** | **Docker** | Multi-stage containerized Linux deployment on Render. |
+| **Edge Hosting** | **Vercel** | Global edge network hosting frontend SPA with automated client routing rewrites. |
+| **API Hosting** | **Render** | Managed container cloud hosting the FastAPI backend microservices. |
 
 ---
 
-## 🗄️ Database Collections
+## Database Schema & Specialized Collections
 
-The database `hisabkitab_db` comprises 10 specialized collections:
+The database `hisabkitab_db` comprises 10 high-performance collections:
 
-1. **`products`**: Product catalog with SKU, base units, stock counts, safety thresholds, and polymorphic packaging properties (`package_unit`, `package_qty`, `package_selling_price`).
-2. **`invoices`**: Hierarchical tax invoices with embedded item arrays, tax breakdowns, payment statuses, and seller/buyer snapshots.
-3. **`business_settings`**: Singleton firm profile (GSTIN, legal trade name, address, bank IFSC, UPI, SMS gateway credentials).
-4. **`users`**: Role-Based Access Control accounts (Admin vs Cashier) with salted PBKDF2-HMAC-SHA256 password hashing.
-5. **`stock_movements`**: Append-only time-series ledger tracking every stock delta (`INVOICE_SALE`, `PURCHASE_RESTOCK`, `MANUAL_ADJUSTMENT`).
-6. **`sms_logs`**: Transactional audit log recording SMS payloads, recipient numbers, and delivery statuses.
-7. **`otp_verifications`**: Security collection with a 10-minute auto-expiring TTL index for restock and password recovery authorization.
-8. **`stock_inwards`**: Audit log for incoming supplier truck deliveries and receiving checks.
-9. **`vendor_debit_claims`**: Discrepancy claims automatically raised against suppliers when billed quantity exceeds received stock.
-10. **`promotional_gifts`**: Ledger for vendor festival schemes, promotional freebies, and non-sellable assets.
+1. **`products`**: Product catalog with SKU, base units, stock quantities, safety thresholds, and polymorphic packaging properties (`package_unit`, `package_qty`, `package_selling_price`).
+2. **`invoices`**: Hierarchical tax invoices with embedded line item arrays, tax breakdowns, payment statuses, and immutable buyer/seller snapshots.
+3. **`business_settings`**: Enterprise profile, GSTIN, legal trade name, address, bank IFSC, UPI credentials, and store configuration.
+4. **`users`**: Role-Based Access Control accounts (Admin, Billing Cashier, Storekeeper) with salted PBKDF2-HMAC-SHA256 password hashes.
+5. **`stock_movements`**: Append-only time-series audit ledger tracking every stock delta (`INVOICE_SALE`, `PURCHASE_RESTOCK`, `MANUAL_ADJUSTMENT`).
+6. **`stock_inwards`**: Inward receiving log for incoming supplier deliveries with discrepancy detection.
+7. **`vendor_debit_claims`**: Automated shortage claims raised against suppliers when billed quantity exceeds physically received stock.
+8. **`promotional_gifts`**: Ledger for vendor festival schemes, promotional freebies, and store assets.
+9. **`sms_logs`**: Transactional delivery log recording SMS payloads, recipient numbers, and gateway responses.
+10. **`otp_verifications`**: Security collection with a 10-minute auto-expiring TTL index (`expireAfterSeconds=600`) for restock and staff verification codes.
 
 ---
 
-## 📡 REST API Overview
+## Core REST API Endpoints
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| **GET** | `/api/health` | Health verification endpoint |
-| **POST** | `/api/auth/login` | Authenticate user and issue JWT token |
-| **POST** | `/api/auth/signup` | Register new user |
-| **GET** | `/api/dashboard/metrics` | Real-time aggregated KPIs, monthly trend, and stock alerts |
-| **GET** | `/api/inventory` | Search, filter, and list product catalog |
-| **POST** | `/api/inventory` | Create new product with dynamic packaging units |
-| **POST** | `/api/inventory/inward` | Inward supplier delivery with OTP check and shortage detection |
-| **POST** | `/api/inventory/request-restock-otp` | Generate and dispatch 2FA restock authorization OTP |
-| **GET** | `/api/invoices` | List and search invoice ledger |
-| **POST** | `/api/invoices/calculate` | Dry-run tax and discount preview |
-| **POST** | `/api/invoices` | Finalize tax invoice and atomically decrement stock |
+| **GET** | `/api/health` | Health status and database connection verification |
+| **POST** | `/api/auth/login` | Authenticate user and issue JWT bearer token |
+| **POST** | `/api/auth/signup` | Register new business enterprise and admin account |
+| **GET** | `/api/dashboard/metrics` | Real-time aggregated financial KPIs, 6-month sales trend, and cashier ranking |
+| **GET** | `/api/inventory` | Search, filter, and list product catalog scoped to active branch |
+| **POST** | `/api/inventory` | Create new product with dynamic packaging conversion factors |
+| **POST** | `/api/inventory/inward` | Receive supplier delivery with shortage detection and debit claim creation |
+| **POST** | `/api/inventory/request-restock-otp` | Generate and dispatch owner restock authorization OTP |
+| **GET** | `/api/invoices` | Search and filter invoice ledger by customer, date, and status |
+| **POST** | `/api/invoices` | Finalize tax invoice, embed legal snapshot, and atomically decrement stock |
 | **GET** | `/api/invoices/{id}/pdf` | Generate and stream ReportLab A4 vector PDF |
-| **POST** | `/api/invoices/{id}/payment-status` | Update invoice payment status (Paid, Unpaid, Partially Paid) |
-| **POST** | `/api/sms/send` | Dispatch invoice breakdown via SMS gateway |
-| **GET** | `/api/settings` | Retrieve business profile and tax settings |
-| **POST** | `/api/settings` | Update business settings and SMS credentials |
+| **POST** | `/api/invoices/{id}/payment-status` | Update payment status (Paid, Unpaid, Partially Paid) |
+| **GET** | `/api/settings` | Retrieve active business settings and branch profile |
+| **POST** | `/api/settings/branches` | Create new commercial trade branch outlet |
 
 ---
 
-## 💻 Local Quickstart
+## Local Development & Setup
 
 ### Prerequisites
 * **Python 3.10+**
 * **Node.js 18+** & npm
-* **MongoDB** (local instance on `localhost:27017` or MongoDB Atlas URI)
+* **MongoDB** (Local instance on `localhost:27017` or MongoDB Atlas URI)
 
 ### 1. Backend Setup
 ```bash
 cd backend
+
+# Create and activate virtual environment
+python -m venv venv
+# On Windows:
+venv\Scripts\activate
+# On Linux/macOS:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 
 # Seed sample catalog products & multi-month invoices
 python seed_stationery.py
 python seed_dashboard.py
+python seed_pharmacy_demo.py
 
-# Launch FastAPI backend
+# Launch FastAPI ASGI server
 python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
-* API Health: `http://localhost:8000/api/health`
-* Swagger Documentation: `http://localhost:8000/docs`
+* **API Health Check:** `http://localhost:8000/api/health`
+* **Swagger API Explorer:** `http://localhost:8000/docs`
 
 ### 2. Frontend Setup
 ```bash
 cd frontend
+
+# Install dependencies
 npm install
+
+# Start Vite development server
 npm run dev
 ```
-* Application UI: `http://localhost:5173`
+* **Application UI:** `http://localhost:5173`
+
+---
+
+## Author & Academic Submission
+
+* **Author:** Shayan Akhtar
+* **Registration Number:** 12317465 | **Roll Number:** 30
+* **Programme & Section:** B.Tech Computer Science & Engineering | K23WS
+* **Course:** CSE494 Intelligent NoSQL Databases
+* **Institution:** School of Computer Science and Engineering, Lovely Professional University
+* **Supervisor / Mentor:** Dr. Manpreet Singh Sehgal (UID: 32354)
